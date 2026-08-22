@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>A2-2 테스트 RSS</title>
+    <item>
+      <guid>sample-1</guid>
+      <title>AI 반도체 시장 경쟁 본격화</title>
+      <link>https://example.com/news/1</link>
+      <pubDate>Sat, 22 Aug 2026 09:00:00 +0900</pubDate>
+      <description>테스트를 위한 가상 뉴스 설명입니다.</description>
+    </item>
+  </channel>
+</rss>
