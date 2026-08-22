@@ -39,11 +39,19 @@ CLI
 - 경로 처리: `pathlib.Path`
 - 실제 SQL: `database.py`에만 작성
 
+## 중복 처리
+
+- 원본 뉴스의 중복 기준은 정규화된 URL이며, 제목은 중복 기준으로 사용하지 않는다.
+- `collection_service.py`는 URL을 정규화하고 `skip` 또는 `upsert` 정책을 선택하여 저장을 요청한다.
+- `database.py`는 URL 조회, `UNIQUE` 제약 확인, 실제 insert 또는 update SQL 실행을 담당한다.
+- `raw_news.url`과 `clean_news.canonical_url`의 `UNIQUE` 제약으로 최종 중복 저장을 방지한다.
+
 ## 수집 실패 처리
 
 - 기사별 실패는 기사 URL 또는 ID, 실패 단계, 오류 원인을 로그 파일에 기록한다.
 - 한 기사에서 오류가 발생해도 가능한 경우 다음 기사의 처리를 계속한다.
 - RSS 정보 수집에는 성공했지만 본문 크롤링에 실패한 경우 RSS 원본은 `raw_news`에 저장하고, 크롤링 실패는 로그에 남긴다.
 - 수집 실행의 성공·실패·중복 건수와 최종 상태는 `collection_runs`에 집계한다.
-- 일부 항목만 실패하면 실행 상태를 `partial`, 실행 전체가 실패하면 `failed`로 저장한다.
-- `collection_runs.error_message`에는 실행 전체 실패 원인 또는 대표 오류 요약을 저장하며, 기사별 상세 오류는 로그에서 확인한다.
+- 요청과 파싱이 정상이고 수집 대상이 0건이거나 모든 항목이 중복이면 `completed`로 저장한다.
+- 일부 항목만 실패하면 `partial`, 외부 요청·파싱 자체가 실패하거나 수집된 모든 항목의 처리가 실패하면 `failed`로 저장한다.
+- `collection_runs.error_message`에는 최초 오류를 대표 오류로 저장하고, 추가 오류가 있으면 `(외 N건)`을 덧붙인다. 기사별 상세 오류는 로그에서 확인한다.
