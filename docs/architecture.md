@@ -16,8 +16,9 @@ CLI
 ## 모듈 책임
 
 - `cli.py`: 옵션 해석과 Service 호출만 담당한다.
-- `collectors/`: 네트워크 수집과 HTML 파싱을 담당한다.
+- `collectors/`: RSS·기사 페이지의 HTTP 요청과 응답 파싱만 담당하고, 결과를 `RawNews`로 반환한다. SQL 실행, SQLite 저장, 중복 정책 적용은 하지 않는다.
 - `services/`: 기능별 업무 흐름과 검증을 담당한다.
+- `collection_service.py`: RSS 수집기와 기사 크롤러의 실행 순서를 조정하고 `limit`, 요청 지연, 중복 정책, 저장 요청, 실행 통계를 관리한다. SQLite 접근은 `database.py`의 함수를 통해서만 수행한다.
 - `providers/`: AI 인증, 호출, 재시도, 응답 변환을 담당한다.
 - `database.py`: 모든 SQL과 SQLite 접근을 담당한다.
 - `models.py`: 모듈 사이에서 공유하는 데이터 구조를 정의한다.
@@ -36,5 +37,30 @@ CLI
 - 중복 정책 우선순위: CLI → `config.json` → `skip`
 - API 키: `GEMINI_API_KEY` 환경변수 또는 `.env`
 - 경로 처리: `pathlib.Path`
-- 외부 호출 실패: 해당 항목을 기록하고 가능한 경우 다음 항목을 계속 처리
 - 실제 SQL: `database.py`에만 작성
+
+## 중복 처리
+
+- 원본 뉴스의 중복 기준은 정규화된 URL이며, 제목은 중복 기준으로 사용하지 않는다.
+- `collection_service.py`는 URL을 정규화하고 `skip` 또는 `upsert` 정책을 선택하여 저장을 요청한다.
+- `database.py`는 URL 조회, `UNIQUE` 제약 확인, 실제 insert 또는 update SQL 실행을 담당한다.
+- `raw_news.url`과 `clean_news.canonical_url`의 `UNIQUE` 제약으로 최종 중복 저장을 방지한다.
+
+URL은 다음 순서로 정규화한다.
+
+1. URL 앞뒤 공백을 제거한다.
+2. scheme과 host를 소문자로 변환하고 기본 포트를 제거한다.
+3. fragment(`#...`)를 제거한다.
+4. 루트 경로를 제외한 경로 끝의 `/`를 제거한다. 경로의 대소문자는 변경하지 않는다.
+5. `utm_*`, `fbclid`, `gclid` 등 추적용 쿼리 파라미터만 제거한다.
+6. 기사 식별에 필요한 쿼리 파라미터는 유지하고, 남은 파라미터를 이름과 값 순으로 정렬한다.
+
+## 수집 실패 처리
+
+- 기사별 실패는 기사 URL 또는 ID, 실패 단계, 오류 원인을 로그 파일에 기록한다.
+- 한 기사에서 오류가 발생해도 가능한 경우 다음 기사의 처리를 계속한다.
+- RSS 정보 수집에는 성공했지만 본문 크롤링에 실패한 경우 RSS 원본은 `raw_news`에 저장하고, 크롤링 실패는 로그에 남긴다.
+- 수집 실행의 성공·실패·중복 건수와 최종 상태는 `collection_runs`에 집계한다.
+- 요청과 파싱이 정상이고 수집 대상이 0건이거나 모든 항목이 중복이면 `completed`로 저장한다.
+- 일부 항목만 실패하면 `partial`, 외부 요청·파싱 자체가 실패하거나 수집된 모든 항목의 처리가 실패하면 `failed`로 저장한다.
+- `collection_runs.error_message`에는 최초 오류를 대표 오류로 저장하고, 추가 오류가 있으면 `(외 N건)`을 덧붙인다. 기사별 상세 오류는 로그에서 확인한다.
