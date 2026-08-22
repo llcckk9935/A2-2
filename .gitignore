@@ -209,6 +209,30 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# A2-2 local secrets
+.env.*
+!.env.example
+
+# A2-2 runtime data
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite3
+!data/.gitkeep
+logs/*.log
+logs/*.log.*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+exports/*
+!exports/.gitkeep
+
+# OS and common editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
