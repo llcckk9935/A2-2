@@ -7,9 +7,10 @@ import logging
 import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from news_pipeline.config import (
+    AppConfig,
     ConfigError,
     ensure_runtime_directories,
     load_config,
@@ -20,6 +21,7 @@ from news_pipeline.logger import setup_logging
 
 
 CATEGORIES = ("politics", "economy", "society", "it", "all")
+CommandHandler = Callable[[argparse.Namespace, AppConfig, Path], int]
 
 
 def positive_int(value: str) -> int:
@@ -46,6 +48,28 @@ def iso_date(value: str) -> str:
 
 def lower_text(value: str) -> str:
     return value.lower()
+
+def resolve_provider(args: argparse.Namespace, config: AppConfig) -> str:
+    """CLI Provider 옵션을 설정 파일의 기본값보다 우선하여 반환한다."""
+
+    cli_provider = getattr(args, "provider", None)
+    if cli_provider is not None:
+        return cli_provider
+    return config.ai.provider
+
+
+def execute_command(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+    service_handler: CommandHandler,
+) -> int:
+    """CLI 인자를 기능 서비스 어댑터에 전달하고 종료 코드를 반환한다."""
+
+    if hasattr(args, "provider"):
+        args.provider = resolve_provider(args, config)
+
+    return int(service_handler(args, config, project_root))
 
 
 def _add_date_filters(parser: argparse.ArgumentParser) -> None:
@@ -137,7 +161,11 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
             parser.error("분석 결과 조회 옵션과 새 분석 생성 옵션을 함께 사용할 수 없습니다.")
 
 
-def _feature_pending(args: argparse.Namespace) -> int:
+def _feature_pending(
+    args: argparse.Namespace,
+    _config: AppConfig,
+    _project_root: Path,
+) -> int:
     logging.getLogger("cli").warning(
         "'%s' 기능의 골격만 준비되었습니다. 담당 Issue에서 구현하세요.",
         args.command,
@@ -145,7 +173,10 @@ def _feature_pending(args: argparse.Namespace) -> int:
     return 1
 
 
-def run_cli(argv: Sequence[str] | None = None) -> int:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    command_handler: CommandHandler | None = None,
+) -> int:
     parser = create_parser()
     args = parser.parse_args(argv)
     validate_args(parser, args)
@@ -164,4 +195,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         print(f"[ERROR] 실행 환경 초기화 실패: {exc}")
         return 4
 
-    return int(args.handler(args))
+    selected_handler = command_handler or args.handler
+    return execute_command(
+        args,
+        config,
+        project_root,
+        selected_handler,
+    )
