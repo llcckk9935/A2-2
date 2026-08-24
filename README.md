@@ -87,7 +87,7 @@ A2-2/
 └── docs/
 ```
 
-설계 설명은 [`docs/architecture.md`](docs/architecture.md), 협업 규칙은 [`docs/collaboration.md`](docs/collaboration.md)를 참고합니다.
+설계 설명은 [`docs/architecture.md`](docs/architecture.md), 핵심 협업 규칙은 [`docs/collaboration.md`](docs/collaboration.md), 역할별 전체 작업 절차는 [`docs/team-workflow-guide.md`](docs/team-workflow-guide.md)를 참고합니다.
 
 ## 데이터와 생성 파일
 
