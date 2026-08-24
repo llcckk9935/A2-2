@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS analysis_results (
     implications TEXT NOT NULL DEFAULT '[]',
     article_ids TEXT NOT NULL DEFAULT '[]',
     category_counts TEXT NOT NULL DEFAULT '{}',
+    excluded_count INTEGER NOT NULL DEFAULT 0,
     ai_provider TEXT NOT NULL,
     ai_model TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'completed',
@@ -107,4 +108,8 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
 def initialize_database(database_path: str | Path) -> None:
     with closing(connect(database_path)) as connection:
         connection.executescript(SCHEMA_SQL)
+        # 기존 개발 DB도 Issue #8 필드를 사용할 수 있도록 가벼운 마이그레이션을 수행한다.
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(analysis_results)")}
+        if "excluded_count" not in columns:
+            connection.execute("ALTER TABLE analysis_results ADD COLUMN excluded_count INTEGER NOT NULL DEFAULT 0")
         connection.commit()

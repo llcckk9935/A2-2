@@ -68,6 +68,13 @@ class AIConfig(BaseModel):
     retry_base_seconds: float = Field(default=1.0, gt=0)
 
 
+class AnalysisConfig(BaseModel):
+    max_articles: int = Field(default=50, gt=0)
+    max_summary_chars: int = Field(default=1000, gt=0)
+    minimum_articles: int = Field(default=2, gt=0)
+    balance_categories: bool = True
+
+
 class ReportConfig(BaseModel):
     default_top_n: int = Field(default=5, gt=0)
     chart_dpi: int = Field(default=150, gt=0)
@@ -91,6 +98,7 @@ class AppConfig(BaseModel):
     database: DatabaseConfig
     news: NewsConfig
     ai: AIConfig
+    analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     report: ReportConfig
     export: ExportConfig
     logging: LoggingConfig

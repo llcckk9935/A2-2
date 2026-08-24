@@ -109,7 +109,7 @@ def create_parser() -> argparse.ArgumentParser:
     summarize.add_argument("--limit", type=positive_int)
     summarize.add_argument("--force", action="store_true")
     summarize.add_argument("--provider", choices=("gemini", "mock"))
-    summarize.set_defaults(handler=_feature_pending)
+    summarize.set_defaults(handler=_run_summarize)
 
     analyze = subparsers.add_parser("analyze", help="기간·카테고리별 AI 인사이트 분석")
     _add_date_filters(analyze)
@@ -119,7 +119,7 @@ def create_parser() -> argparse.ArgumentParser:
     analysis_query = analyze.add_mutually_exclusive_group()
     analysis_query.add_argument("--list-results", action="store_true")
     analysis_query.add_argument("--result-id", type=positive_int)
-    analyze.set_defaults(handler=_feature_pending)
+    analyze.set_defaults(handler=_run_analyze)
 
     report = subparsers.add_parser("report", help="차트와 종합 리포트 생성")
     _add_date_filters(report)
@@ -171,6 +171,53 @@ def _feature_pending(
         args.command,
     )
     return 1
+
+
+def _make_provider(args: argparse.Namespace, config: AppConfig):
+    from news_pipeline.providers.factory import create_provider
+
+    ai_config = config.ai.model_copy(update={"provider": args.provider})
+    return create_provider(args.provider, ai_config), ai_config
+
+
+def _run_summarize(args: argparse.Namespace, config: AppConfig, project_root: Path) -> int:
+    from news_pipeline.services.summarizer import SummarizerService
+
+    provider, ai_config = _make_provider(args, config)
+    database_path = resolve_project_path(project_root, config.database.path)
+    stats = SummarizerService(database_path, ai_config, provider).summarize(
+        news_id=args.id, all_news=args.all, unsummarized=args.unsummarized, limit=args.limit, force=args.force
+    )
+    print(f"요약 완료: 요청={stats.requested_count}, 성공={stats.success_count}, 실패={stats.failure_count}, 스킵={stats.skipped_count}")
+    return 0 if stats.failure_count == 0 else 2
+
+
+def _run_analyze(args: argparse.Namespace, config: AppConfig, project_root: Path) -> int:
+    from news_pipeline.services.analyzer import AnalyzerService
+
+    provider, ai_config = _make_provider(args, config)
+    database_path = resolve_project_path(project_root, config.database.path)
+    service = AnalyzerService(database_path, ai_config, config.analysis, provider)
+    if args.list_results:
+        for item in service.list_results():
+            print(f"{item.id}: {item.date_from or '-'} ~ {item.date_to or '-'} | {item.category or 'all'} | {item.article_count}건 | {item.ai_provider}/{item.ai_model}")
+        return 0
+    if args.result_id:
+        item = service.get_result(args.result_id)
+        if item is None:
+            print(f"[ERROR] 분석 결과 ID {args.result_id}를 찾을 수 없습니다.")
+            return 2
+        print(f"분석 결과 #{item.id} ({item.article_count}건)")
+        for title, values in (("주요 트렌드", item.insights.trends), ("핵심 키워드", item.insights.keywords), ("주요 이슈", item.insights.major_issues), ("공통점", item.insights.common_points), ("차이점", item.insights.differences), ("시사점", item.insights.implications)):
+            print(f"\n[{title}]")
+            print("\n".join(f"- {value}" for value in values))
+        return 0
+    result = service.analyze(date_from=args.date_from, date_to=args.date_to, category=args.category, limit=args.limit)
+    if result is None:
+        print("[ERROR] 분석할 요약 뉴스가 없거나 최소 기사 수에 미달합니다.")
+        return 2
+    print(f"분석 저장 완료: ID={result.id}, 기사={result.article_count}건, provider={result.ai_provider}/{result.ai_model}")
+    return 0
 
 
 def run_cli(

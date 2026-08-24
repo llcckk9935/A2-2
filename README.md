@@ -2,7 +2,7 @@
 
 아이뉴스24 RSS와 기사 페이지에서 뉴스를 수집하고, 정제·AI 요약·인사이트 분석·시각화·리포트·내보내기를 수행하는 CLI 기반 Python 프로젝트입니다.
 
-> 현재 상태: Issue #1 프로젝트 기본 틀입니다. CLI와 공통 계약은 준비됐지만 각 기능의 실제 구현은 담당 Issue에서 진행합니다.
+> AI 요약과 인사이트 분석은 Gemini/Mock Provider를 통해 실행할 수 있습니다. 수집·정제·리포트 등 나머지 기능은 담당 Issue에서 확장합니다.
 
 ## 개발 환경
 
@@ -63,6 +63,24 @@ python main.py fetch --help
 python main.py summarize --help
 python main.py export --help
 ```
+
+## AI 뉴스 요약과 인사이트 분석
+
+API 키 없이 개발·테스트하려면 결정적인 결과를 반환하는 Mock Provider를 사용합니다.
+
+```bash
+python main.py summarize --unsummarized --limit 10 --provider mock
+python main.py summarize --id 42 --provider mock
+python main.py summarize --all --force --limit 3 --provider mock
+python main.py analyze --date-from 2026-08-20 --date-to 2026-08-26 --provider mock
+python main.py analyze --date-from 2026-08-20 --date-to 2026-08-26 --category it --limit 10 --provider mock
+python main.py analyze --list-results
+python main.py analyze --result-id 3
+```
+
+Gemini를 사용할 때만 `GEMINI_API_KEY`를 설정한 뒤 `--provider gemini`로 실행합니다. 요약은 기사 본문을 구조화된 JSON(`summary`, `key_points`)으로 받고 SQLite의 `clean_news`에 저장합니다. 분석은 저장된 요약문을 바탕으로 주요 트렌드, 키워드, 이슈, 공통점, 차이점, 시사점을 생성해 `analysis_results`에 별도로 저장합니다.
+
+Gemini 무료 등급에는 요청·토큰 제한이 있으므로 실제 검증은 `--limit 3`처럼 작은 수로 실행합니다. 무료 등급의 입력이 제품 개선에 사용될 수 있으므로 공개 뉴스 외 개인정보, 비공개 정보, API 키는 프롬프트에 넣지 마세요. 자동 테스트는 항상 Mock Provider만 사용하며 실제 API 호출을 하지 않습니다.
 
 ## 프로젝트 구조
 
