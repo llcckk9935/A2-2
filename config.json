@@ -23,6 +23,22 @@
       "inews24": {
         "enabled": true,
         "base_url": "https://www.inews24.com",
+        "respect_robots_txt": true,
+        "article_selectors": {
+          "title": ["h1"],
+          "content": ["#articleBody", "article"],
+          "remove": [
+            "script",
+            "style",
+            "nav",
+            "aside",
+            ".advertisement",
+            ".ad",
+            ".reporter",
+            ".related-news"
+          ],
+          "premium": [".paywall", ".premium", "[data-premium='true']"]
+        },
         "rss_urls": {
           "politics": "",
           "economy": "",
