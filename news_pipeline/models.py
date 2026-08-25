@@ -67,6 +67,7 @@ class AnalysisResult:
     ai_provider: str = "mock"
     ai_model: str = "mock-model"
     id: int | None = None
+    excluded_count: int = 0
 
 
 @dataclass(slots=True)

@@ -193,6 +193,7 @@ def _run_summarize(args: argparse.Namespace, config: AppConfig, project_root: Pa
 
 
 def _run_analyze(args: argparse.Namespace, config: AppConfig, project_root: Path) -> int:
+    from news_pipeline.providers.base import AIProviderError
     from news_pipeline.services.analyzer import AnalyzerService
 
     provider, ai_config = _make_provider(args, config)
@@ -212,7 +213,12 @@ def _run_analyze(args: argparse.Namespace, config: AppConfig, project_root: Path
             print(f"\n[{title}]")
             print("\n".join(f"- {value}" for value in values))
         return 0
-    result = service.analyze(date_from=args.date_from, date_to=args.date_to, category=args.category, limit=args.limit)
+    try:
+        result = service.analyze(date_from=args.date_from, date_to=args.date_to, category=args.category, limit=args.limit)
+    except AIProviderError as exc:
+        logging.getLogger("cli").error("AI 인사이트 분석 실패: %s", exc)
+        print(f"[ERROR] AI 인사이트 분석 실패: {exc}")
+        return 2
     if result is None:
         print("[ERROR] 분석할 요약 뉴스가 없거나 최소 기사 수에 미달합니다.")
         return 2

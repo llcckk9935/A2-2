@@ -54,7 +54,10 @@ class GeminiProvider(AIProvider):
         except ImportError as exc:
             raise ProviderConfigError("google-genai 패키지가 없습니다. requirements.txt를 설치하세요.") from exc
 
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=int(self.config.timeout_seconds * 1000)),
+        )
         schema = response_schema.model_json_schema()
         for attempt in range(self.config.max_retries + 1):
             try:
