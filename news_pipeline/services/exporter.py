@@ -6,19 +6,27 @@ import csv
 import json
 from openpyxl import Workbook
 from datetime import datetime
+from news_pipeline.config import AppConfig, resolve_project_path
 
 class ExporterService:
     def export(
-    self,
-    *,
-    output_format: str,
-    status: str,
-    category: str | None,
-    date_from: str | None,
-    date_to: str | None,
-    output: str | None,
-) -> Path:
+        self,
+        *,
+        output_format: str,
+        status: str,
+        category: str | None,
+        date_from: str | None,
+        date_to: str | None,
+        output: str | None,
+        config: AppConfig,
+        project_root: Path,
+    ) -> Path:
         logger = logging.getLogger(__name__)
+
+        logger.info(
+            "필터 조건: status=%s, category=%s, date_from=%s, date_to=%s",
+            status, category, date_from, date_to,
+        )
 
         all_news = self._fetch_mock_clean_news()
         news = self._filter_clean_news(
@@ -29,9 +37,15 @@ class ExporterService:
             date_to=date_to,
         )
 
-        output_dir = Path(output) if output else Path("exports")
+        if output:
+            output_dir = resolve_project_path(project_root, output)
+        else:
+            output_dir = resolve_project_path(project_root, config.export.output_directory)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        if not news:
+            logger.info("조회 결과가 없습니다. 내보낼 데이터가 0건입니다.")
+            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"clean_news_{timestamp}.{output_format}"
         output_path = output_dir / filename

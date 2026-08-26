@@ -205,6 +205,8 @@ def _run_export(
         date_from=args.date_from,
         date_to=args.date_to,
         output=args.output,
+        config=config,
+        project_root=project_root,
     )
     return 0
 
