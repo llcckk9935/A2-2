@@ -144,7 +144,7 @@ def test_crawl_extracts_page_metadata_and_removes_noise() -> None:
       <meta property="og:title" content="페이지 제목">
       <meta name="author" content="홍길동 기자">
       <meta property="article:published_time" content="2026-08-25T10:00:00+09:00">
-      <meta property="article:section" content="it">
+      <meta property="article:section" content="반도체/디스플레이">
     </head><body><div id="articleBody">
       <p>보존할 본문입니다.</p><div class="advertisement">광고 문구</div>
     </div></body></html>
@@ -155,7 +155,9 @@ def test_crawl_extracts_page_metadata_and_removes_noise() -> None:
     result = crawler(session).crawl(news(), delay=0)
 
     assert result.title == "페이지 제목"
+    assert result.category == "it"
     assert result.published_at_raw == "2026-08-25T10:00:00+09:00"
     assert result.raw_payload["crawl"]["author"] == "홍길동 기자"
+    assert result.raw_payload["crawl"]["site_category"] == "반도체/디스플레이"
     assert result.content_raw == "보존할 본문입니다."
 

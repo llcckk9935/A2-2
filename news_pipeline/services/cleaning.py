@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import html
 import re
 import sqlite3
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
@@ -20,6 +23,8 @@ def normalize_text(text: Optional[str]) -> str:
     """HTML 태그 제거 및 텍스트 정규화"""
     if not text:
         return ""
+    # RSS와 기사 메타데이터의 HTML 엔티티를 실제 문자로 복원한다.
+    text = html.unescape(text)
     # HTML 태그 제거
     clean = re.sub(r"<[^>]+>", "", text)
     # 불필요한 공백 정리
@@ -43,6 +48,22 @@ def normalize_url(url: str) -> str:
     return urlunparse(clean_parsed)
 
 
+def normalize_published_at(value: Optional[str]) -> Optional[str]:
+    """RSS/ISO 날짜를 시간대가 포함된 ISO 8601 문자열로 통일한다."""
+    if not value or not value.strip():
+        return None
+    raw = value.strip()
+    try:
+        parsed = parsedate_to_datetime(raw)
+    except (TypeError, ValueError, OverflowError):
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            logger.warning("지원하지 않는 발행일 형식이라 결측값으로 처리합니다: %s", raw)
+            return None
+    return parsed.isoformat()
+
+
 def clean_news_item(raw_data: dict) -> dict:
     """raw 뉴스 데이터를 받아 clean 뉴스 데이터로 변환"""
     title = normalize_text(raw_data.get("title"))
@@ -55,7 +76,7 @@ def clean_news_item(raw_data: dict) -> dict:
         "category": raw_data.get("category"),
         "title": title,
         "canonical_url": canonical_url,
-        "published_at": raw_data.get("published_at_raw"),
+        "published_at": normalize_published_at(raw_data.get("published_at_raw")),
         "content": content,
         "summary_status": "pending",
     }

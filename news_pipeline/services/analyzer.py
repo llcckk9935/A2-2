@@ -82,7 +82,8 @@ class AnalyzerService:
     def _limit_balanced(self, rows, requested: int, category: str | None):
         if category or not self.analysis_config.balance_categories:
             return rows[:requested], max(0, len(rows) - requested)
-        buckets = {name: [r for r in rows if r["category"] == name] for name in ("politics", "economy", "society", "it")}
+        category_names = sorted({row["category"] for row in rows})
+        buckets = {name: [r for r in rows if r["category"] == name] for name in category_names}
         selected = []
         while len(selected) < requested and any(buckets.values()):
             for name in buckets:

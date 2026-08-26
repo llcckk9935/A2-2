@@ -1,4 +1,4 @@
-"""Gemini와 Mock이 함께 지키는 공통 계약과 예외."""
+"""OpenAI와 Mock이 함께 지키는 공통 계약과 예외."""
 
 from __future__ import annotations
 

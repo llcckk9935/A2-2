@@ -37,7 +37,7 @@ class MockAIProvider(AIProvider):
             result = {
                 "summary": (
                     f"[Mock] '{title}' 기사에 대한 테스트용 요약입니다. "
-                    "이 결과는 실제 Gemini API가 생성한 내용이 아닙니다."
+                    "이 결과는 실제 OpenAI API가 생성한 내용이 아닙니다."
                 ),
                 "key_points": [
                     f"[Mock] 대상 기사: {title}",

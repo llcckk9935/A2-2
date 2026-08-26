@@ -61,13 +61,13 @@ def test_raw_and_clean_news_crud(db):
     db.save_summary_result(clean_id, {
         "summary": "요약문",
         "key_points": ["포인트1"],
-        "ai_provider": "gemini",
-        "ai_model": "gemini-1.5-flash"
+        "ai_provider": "openai",
+        "ai_model": "gpt-5-mini"
     })
 
     news = db.get_news_by_id(clean_id)
     assert news["summary_status"] == "summarized"
-    assert news["ai_provider"] == "gemini"
+    assert news["ai_provider"] == "openai"
 
 
 def test_analysis_results_and_counts(db):
@@ -78,8 +78,8 @@ def test_analysis_results_and_counts(db):
         "article_count": 5,
         "trends": ["트렌드"],
         "keywords": ["AI"],
-        "ai_provider": "gemini",
-        "ai_model": "gemini-1.5-flash",
+        "ai_provider": "openai",
+        "ai_model": "gpt-5-mini",
         "status": "completed"
     })
     assert analysis_id is not None

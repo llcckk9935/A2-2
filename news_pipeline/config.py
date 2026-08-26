@@ -80,9 +80,10 @@ class NewsConfig(BaseModel):
 
 
 class AIConfig(BaseModel):
-    provider: Literal["gemini", "mock"] = "mock"
-    api_key_env: str = "GEMINI_API_KEY"
-    model: str = "gemini-3.5-flash-lite"
+    provider: Literal["openai", "mock"] = "mock"
+    api_key_env: str = "OPENAI_API_KEY"
+    base_url: str | None = None
+    model: str = "gpt-5-mini"
     timeout_seconds: float = Field(default=30, gt=0)
     max_input_chars: int = Field(default=12000, gt=0)
     max_output_tokens: int = Field(default=500, gt=0)

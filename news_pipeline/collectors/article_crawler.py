@@ -96,12 +96,12 @@ class ArticleCrawler:
             ("article:published_time", "date", "pubdate", "datePublished"),
         ) or news.published_at_raw
         author = self._extract_meta(soup, ("author", "article:author"))
-        category = self._extract_meta(soup, ("article:section", "section")) or news.category
+        site_category = self._extract_meta(soup, ("article:section", "section"))
         raw_payload = dict(news.raw_payload)
         raw_payload["crawl"] = {
             "author": author,
             "published_at": published_at,
-            "category": category,
+            "site_category": site_category,
             "content_selector": self._matched_content_selector(soup),
         }
 
@@ -111,7 +111,7 @@ class ArticleCrawler:
             source=news.source,
             source_id=news.source_id,
             collection_method="crawl",
-            category=category,
+            category=news.category,
             title=title,
             url=news.url,
             published_at_raw=published_at,

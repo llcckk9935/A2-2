@@ -1,857 +1,138 @@
-\# 과제 요구사항 대응표
+# Project B 요구사항 검증 체크리스트
+
+이 문서는 과제 본문의 필수 요구사항이 코드·테스트·수동 검증에 반영되었는지 확인하는 최종 점검표입니다.
 
+## 1. CLI 설계
 
+- [x] `argparse` 기반 서브커맨드 구조를 사용한다.
+- [x] `fetch`, `clean`, `summarize`, `analyze`, `report`, `export`를 제공한다.
+- [x] `--limit`, `--category`, `--date`/기간, `--format` 등 필요한 옵션을 제공한다.
+- [x] 상호 배타 옵션과 잘못된 날짜 범위를 검증한다.
+- [x] 모든 명령에서 `--help`를 제공한다.
 
-이 문서는 Project B의 과제 요구사항이 구현과 통합 과정에서 누락되지 않도록 관리하기 위한 체크리스트다.
+검증: `tests/test_cli.py`, `python main.py --help`
 
+## 2. 뉴스 수집과 raw 저장
 
+- [x] 공개 RSS로 정치·경제·사회·IT 뉴스를 수집한다.
+- [x] BeautifulSoup으로 기사 페이지의 본문을 크롤링한다.
+- [x] HTTP 요청에 타임아웃과 User-Agent를 설정한다.
+- [x] 연결·응답·파싱·429·본문 없음 오류를 기사별로 처리하고 다음 처리를 계속한다.
+- [x] `robots.txt`를 확인하고 요청 간 지연을 적용한다.
+- [x] 수집 시각, 소스, 수집 방법, 원본 payload를 `raw_news`에 저장한다.
+- [x] `--limit`을 초과하여 저장하지 않는다.
+- [x] 정규화 URL을 기준으로 `skip`과 `upsert` 정책을 적용한다.
+- [x] 실행 통계를 `collection_runs`에 저장한다.
 
-상태 표기:
+검증: `tests/test_collectors.py`, `tests/test_article_crawler.py`, `tests/test_collection_service.py`
 
+## 3. 데이터 정제와 clean 저장
 
-
-- `[ ]` 미구현 또는 미확인
-
-- `[x]` 구현 및 검증 완료
-
-- `기본틀`은 파일과 인터페이스만 존재하고 실제 기능은 아직 구현되지 않은 상태를 의미한다.
-
-
-
----
-
-
-
-\## 1. CLI 설계 — Issue #2
-
-
-
-관련 파일:
-
-
-
-- `main.py`
-
-- `news\_pipeline/cli.py`
-
-- `news\_pipeline/config.py`
-
-- `news\_pipeline/logger.py`
-
-- `config.json`
-
-- `tests/test\_cli.py`
-
-
-
-요구사항:
-
-
-
-- [ ] `argparse` 기반 서브커맨드 CLI가 동작한다.
-
-- [ ] `fetch` 서브커맨드가 동작한다.
-
-- [ ] `clean` 서브커맨드가 동작한다.
-
-- [ ] `summarize` 서브커맨드가 동작한다.
-
-- [ ] `analyze` 서브커맨드가 동작한다.
-
-- [ ] `report` 서브커맨드가 동작한다.
-
-- [ ] `export` 서브커맨드가 동작한다.
-
-- [ ] 각 명령에서 필요한 `--limit` 옵션을 지원한다.
-
-- [ ] 각 명령에서 필요한 `--category` 옵션을 지원한다.
-
-- [ ] 각 명령에서 필요한 날짜 옵션을 지원한다.
-
-- [ ] 각 명령에서 필요한 `--format` 옵션을 지원한다.
-
-- [ ] 잘못된 옵션을 입력하면 이해할 수 있는 오류가 출력된다.
-
-- [ ] 각 서브커맨드의 `--help`가 동작한다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 2. 설정 및 로깅 — Issue #2
-
-
-
-관련 파일:
-
-
-
-- `config.json`
-
-- `.env.example`
-
-- `news\_pipeline/config.py`
-
-- `news\_pipeline/logger.py`
-
-
-
-요구사항:
-
-
-
-- [ ] 뉴스 소스 URL을 `config.json`에서 관리한다.
-
-- [ ] 중복 처리 정책 `skip/upsert`를 `config.json`에서 관리한다.
-
-- [ ] HTTP 타임아웃을 설정에서 관리한다.
-
-- [ ] 크롤링 요청 지연 시간을 설정에서 관리한다.
-
-- [ ] Gemini 모델과 요청 제한을 설정에서 관리한다.
-
-- [ ] Gemini API 키를 `GEMINI\_API\_KEY` 환경변수에서 읽는다.
-
-- [ ] 실제 API 키를 코드나 `config.json`에 작성하지 않는다.
-
-- [ ] `.env` 파일이 Git에서 제외된다.
-
-- [ ] `logging` 모듈을 사용한다.
-
-- [ ] INFO 로그를 기록한다.
-
-- [ ] WARNING 로그를 기록한다.
-
-- [ ] ERROR 로그를 기록한다.
-
-- [ ] API 키와 기사 전문을 로그에 출력하지 않는다.
-
-- [ ] 로그 파일이 `logs/` 아래에 생성된다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 3. SQLite 및 영구 저장 — Issue #3
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/database.py`
-
-- `news\_pipeline/models.py`
-
-- `tests/test\_database.py`
-
-
-
-요구사항:
-
-
-
-- [ ] SQLite 데이터베이스 초기화가 동작한다.
-
-- [ ] `raw\_news` 테이블을 생성한다.
-
-- [ ] `clean\_news` 테이블을 생성한다.
-
-- [ ] AI 분석 결과를 저장하는 테이블을 생성한다.
-
-- [ ] 수집 실행 결과를 저장하는 `collection\_runs` 테이블을 생성한다.
-
-- [ ] raw 데이터와 clean 데이터를 별도로 저장한다.
-
-- [ ] 정규화된 URL을 기준으로 중복을 판단한다.
-
-- [ ] `skip` 중복 정책이 동작한다.
-
-- [ ] `upsert` 중복 정책이 동작한다.
-
-- [ ] 뉴스 저장·조회·수정 함수가 동작한다.
-
-- [ ] 분석 결과가 저장되고 다시 조회된다.
-
-- [ ] SQLite 연결과 트랜잭션 오류를 처리한다.
-
-- [ ] 데이터가 프로그램 종료 후에도 유지된다.
-
-- [ ] 메모리의 List/Dict만으로 데이터를 관리하지 않는다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 4. RSS 뉴스 수집 — Issue #4
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/collectors/rss\_collector.py`
-
-- `news\_pipeline/services/collection\_service.py`
-
-- `tests/test\_collectors.py`
-
-- `tests/fixtures/sample\_rss.xml`
-
-
-
-요구사항:
-
-
-
-- [ ] 아이뉴스24 RSS에서 뉴스를 수집한다.
-
-- [ ] 정치·경제·사회·IT 등 여러 카테고리를 지원한다.
-
-- [ ] 한 카테고리만 선택하여 수집할 수 있다.
-
-- [ ] `--limit`으로 최대 수집 건수를 제한한다.
-
-- [ ] HTTP 요청에 타임아웃을 적용한다.
-
-- [ ] HTTP 응답 실패를 처리한다.
-
-- [ ] 연결 실패가 발생해도 프로그램 전체가 비정상 종료되지 않는다.
-
-- [ ] 수집 데이터에 제목을 포함한다.
-
-- [ ] 수집 데이터에 기사 URL을 포함한다.
-
-- [ ] 수집 데이터에 발행일을 포함한다.
-
-- [ ] 수집 데이터에 카테고리를 포함한다.
-
-- [ ] 수집 데이터에 소스 정보를 포함한다.
-
-- [ ] 수집 데이터에 수집 방법을 포함한다.
-
-- [ ] 수집 데이터에 수집 시각을 포함한다.
-
-- [ ] 결과가 SQLite `raw\_news`에 저장된다.
-
-- [ ] 네트워크 요청을 Mock 처리한 단위 테스트가 있다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 5. 기사 페이지 크롤링 — Issue #5
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/collectors/article\_crawler.py`
-
-- `news\_pipeline/services/collection\_service.py`
-
-- `tests/test\_collectors.py`
-
-- `tests/fixtures/sample\_article.html`
-
-
-
-요구사항:
-
-
-
-- [ ] RSS에서 얻은 아이뉴스24 기사 URL을 크롤링 대상으로 사용한다.
-
-- [ ] BeautifulSoup으로 기사 본문을 추출한다.
-
-- [ ] `fetch --method crawl` 명령과 연결된다.
-
-- [ ] `fetch --method all`에서 RSS 수집 후 크롤링한다.
-
-- [ ] `--category`로 대상을 필터링한다.
-
-- [ ] `--limit`으로 최대 기사 수를 제한한다.
-
-- [ ] 요청 간 지연 시간을 적용한다.
-
-- [ ] 기본 요청 간격을 1.5초 이상으로 설정한다.
-
-- [ ] HTTP 요청에 타임아웃을 적용한다.
-
-- [ ] 기사 한 건의 실패가 다음 기사 처리를 중단시키지 않는다.
-
-- [ ] 크롤링 실패를 WARNING 또는 ERROR 로그로 기록한다.
-
-- [ ] RSS 성공 후 본문만 실패한 경우 부분 성공 데이터를 보존한다.
-
-- [ ] 기사 본문과 수집 정보가 `raw\_news`에 저장된다.
-
-- [ ] robots.txt와 사이트 정책을 확인하고 준수한다.
-
-- [ ] 과도한 요청을 보내지 않는다.
-
-- [ ] HTML 응답을 Mock 처리한 단위 테스트가 있다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 6. 데이터 정제 — Issue #6
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/services/cleaner.py`
-
-- `tests/test\_cleaner.py`
-
-
-
-요구사항:
-
-
-
-- [ ] 필수 필드를 검증한다.
-
-- [ ] 제목 텍스트를 정규화한다.
-
-- [ ] 본문 텍스트를 정규화한다.
-
-- [ ] 불필요한 공백과 줄바꿈을 정리한다.
-
-- [ ] 날짜 형식을 통일한다.
-
-- [ ] 결측값 처리 규칙을 적용한다.
-
-- [ ] URL을 정규화한다.
-
-- [ ] 중복 정책 `skip/upsert`를 적용한다.
-
-- [ ] 정제 결과를 `clean\_news`에 별도로 저장한다.
-
-- [ ] 정제 성공·실패·스킵 건수를 로그에 기록한다.
-
-- [ ] 잘못된 데이터 한 건이 전체 정제를 중단시키지 않는다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 7. Gemini 뉴스 요약 — Issue #7
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/providers/base.py`
-
-- `news\_pipeline/providers/gemini\_provider.py`
-
-- `news\_pipeline/providers/mock\_provider.py`
-
-- `news\_pipeline/services/summarizer.py`
-
-- `tests/test\_ai\_providers.py`
-
-
-
-요구사항:
-
-
-
-- [ ] 정제된 뉴스 본문을 Gemini API에 전달한다.
-
-- [ ] 공식 Gemini Python SDK를 사용한다.
-
-- [ ] Gemini Provider와 Mock Provider가 동일한 인터페이스를 사용한다.
-
-- [ ] Mock 결과에 입력 뉴스 제목이 포함된다.
-
-- [ ] `--all`로 전체 대상을 선택한다.
-
-- [ ] `--id`로 특정 뉴스 한 건을 선택한다.
-
-- [ ] `--unsummarized`로 미요약 뉴스만 선택한다.
-
-- [ ] 대상 선택 옵션을 동시에 사용할 수 없게 한다.
-
-- [ ] `--limit`으로 처리 건수를 제한한다.
-
-- [ ] 이미 요약된 뉴스는 기본적으로 스킵한다.
-
-- [ ] 필요한 경우 `--force`로 다시 요약한다.
-
-- [ ] 본문이 없는 뉴스는 API를 호출하지 않고 스킵한다.
-
-- [ ] 긴 본문은 설정된 길이로 제한한다.
-
-- [ ] 요약문을 3\~5문장으로 생성한다.
-
-- [ ] 핵심 내용 2\~3개를 생성한다.
-
-- [ ] 응답 형식을 검증한다.
-
-- [ ] 요약문과 핵심 내용이 SQLite에 저장된다.
-
-- [ ] API 실패 시 로그를 남기고 해당 뉴스만 스킵한다.
-
-- [ ] 한 뉴스가 실패해도 다음 뉴스를 계속 처리한다.
-
-- [ ] 실제 API를 호출하지 않는 단위 테스트가 있다.
-
-- [ ] 실제 Gemini API 호출을 제출 전에 최소 1회 확인한다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 8. Gemini 인사이트 분석 — Issue #8
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/services/analyzer.py`
-
-- `news\_pipeline/providers/`
-
-- `tests/test\_ai\_providers.py`
-
-
-
-요구사항:
-
-
-
-- [ ] 기간 조건으로 뉴스를 선택한다.
-
-- [ ] 카테고리 조건으로 뉴스를 선택한다.
-
-- [ ] 여러 뉴스를 종합하여 Gemini 분석을 요청한다.
-
-- [ ] 주요 트렌드를 도출한다.
-
-- [ ] 핵심 키워드를 도출한다.
-
-- [ ] 주요 이슈를 도출한다.
-
-- [ ] 공통점과 차이점을 분석한다.
-
-- [ ] 시사점을 분석한다.
-
-- [ ] 필수 분석 항목을 최소 2개 이상 포함한다.
-
-- [ ] 분석 응답 형식을 검증한다.
-
-- [ ] 분석 결과를 SQLite에 별도로 저장한다.
-
-- [ ] 분석에 사용된 뉴스 ID와 기사 수를 추적한다.
-
-- [ ] 저장된 분석 결과를 다시 조회할 수 있다.
-
-- [ ] API 실패 시 로그를 기록한다.
-
-- [ ] Mock Provider로 단위 테스트할 수 있다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 9. 시각화 — Issue #9
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/services/reporter.py`
-
-- `reports/`
-
-
-
-요구사항:
-
-
-
-- [ ] matplotlib을 사용한다.
-
-- [ ] 카테고리별 뉴스 수 차트를 생성한다.
-
-- [ ] 일자별 수집 추이 차트를 생성한다.
-
-- [ ] 최소 2종의 차트를 생성한다.
-
-- [ ] 차트에 한글 폰트를 적용한다.
-
-- [ ] Windows에서 한글이 깨지지 않는다.
-
-- [ ] macOS에서 한글이 깨지지 않는다.
-
-- [ ] 차트를 PNG 파일로 저장한다.
-
-- [ ] 데이터가 없는 경우 이해할 수 있는 안내를 출력한다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 10. 종합 리포트 — Issue #10
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/services/reporter.py`
-
-- `reports/`
-
-
-
-요구사항:
-
-
-
-- [ ] 품질 지표를 2개 이상 포함한다.
-
-- [ ] 필수 필드 완성률을 포함한다.
-
-- [ ] 본문 수집 성공률 또는 요약 완료율을 포함한다.
-
-- [ ] TOP N 집계를 1개 이상 포함한다.
-
-- [ ] 카테고리 TOP N 또는 키워드 TOP N을 포함한다.
-
-- [ ] Gemini 인사이트 분석 결과를 포함한다.
-
-- [ ] 콘솔 출력을 지원한다.
-
-- [ ] TXT 파일 저장을 지원한다.
-
-- [ ] MD 파일 저장을 지원한다.
-
-- [ ] 기간 및 카테고리 필터를 지원한다.
-
-- [ ] 생성된 차트의 위치를 리포트에서 안내한다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 11. 데이터 내보내기 — Issue #11
-
-
-
-관련 파일:
-
-
-
-- `news\_pipeline/services/exporter.py`
-
-- `exports/`
-
-
-
-요구사항:
-
-
-
-- [ ] CSV 내보내기를 지원한다.
-
-- [ ] JSONL 내보내기를 지원한다.
-
-- [ ] Excel 내보내기를 지원한다.
-
-- [ ] 최소 2개 이상의 포맷이 정상 동작한다.
-
-- [ ] `--format`으로 출력 포맷을 지정한다.
-
-- [ ] `--status summarized` 필터를 지원한다.
-
-- [ ] 카테고리 필터를 지원한다.
-
-- [ ] 날짜 필터를 지원한다.
-
-- [ ] 출력 파일이 `exports/`에 생성된다.
-
-- [ ] 한글 데이터가 깨지지 않는다.
-
-- [ ] 내보낸 건수와 파일 경로를 출력한다.
-
-
-
-현재 상태: 기본틀
-
-
-
----
-
-
-
-\## 12. 전체 연결 및 최종 검증 — Issue #12
-
-
-
-관련 파일:
-
-
-
-- `tests/test\_pipeline.py`
-
-- 전체 프로젝트
-
-- `README.md`
-
-
-
-필수 연결 흐름:
-
-
-
-```text
-
-fetch
-
-→ raw 저장
-
-→ clean
-
-→ clean 저장
-
-→ summarize
-
-→ analyze
-
-→ report
-
-→ export
-
-
-
-요구사항:
-
-
-
-- [ ] RSS 수집부터 raw 저장까지 연결된다.
-
-- [ ] 기사 크롤링 결과가 raw 저장에 반영된다.
-
-- [ ] raw 데이터가 clean 데이터로 정제된다.
-
-- [ ] clean 뉴스가 Gemini 또는 Mock으로 요약된다.
-
-- [ ] 기간·카테고리별 인사이트 분석이 동작한다.
-
-- [ ] 분석 결과가 저장되고 조회된다.
-
-- [ ] 카테고리별 뉴스 수 차트가 생성된다.
-
-- [ ] 일자별 수집 추이 차트가 생성된다.
-
-- [ ] 품질 지표와 TOP N이 포함된 리포트가 생성된다.
-
-- [ ] CSV 내보내기가 동작한다.
-
-- [ ] JSONL 내보내기가 동작한다.
-
-- [ ] Excel 내보내기가 동작한다.
-
-- [ ] 한 단계가 실패할 때 필요한 로그가 기록된다.
-
-- [ ] Windows에서 전체 실행을 확인한다.
-
-- [ ] 가능하면 macOS에서도 전체 실행을 확인한다.
-
-- [ ] 자동 테스트에서 실제 뉴스 사이트를 호출하지 않는다.
-
-- [ ] 자동 테스트에서 실제 Gemini 비용이 발생하지 않는다.
-
-- [ ] API 키, `.env`, DB, 로그가 GitHub에 포함되지 않는다.
-
-- [ ] README에 Windows 실행 방법이 있다.
-
-- [ ] README에 macOS 실행 방법이 있다.
-
-- [ ] README에 전체 CLI 사용 예시가 있다.
-
-- [ ] `python main.py --help`가 정상 동작한다.
-
-- [ ] 전체 필수 테스트가 통과한다.
-
-
-
-현재 상태: 기본틀 테스트 7개 통과
-
-
-
----
-
-
-
-\## 13. 프로젝트 구조 및 제약사항
-
-
-
-- [x] Python 3.10 이상을 사용한다.
-
-- [x] 웹 UI 없이 CLI로 구성한다.
-
-- [x] 모든 코드를 단일 파일에 작성하지 않는다.
-
-- [x] 4개 이상의 모듈로 분리되어 있다.
-
-- [x] SQLite 영구 저장소를 사용하도록 설계되어 있다.
-
-- [x] Gemini 공식 SDK를 의존성에 포함한다.
-
-- [x] API 키를 환경변수로 관리하도록 설계되어 있다.
-
-- [x] 데이터·로그·리포트·내보내기 디렉터리가 분리되어 있다.
-
-- [ ] 크롤링 대상 사이트의 정책을 최종 확인한다.
-
-- [ ] 요청 간 지연과 요청 제한을 실제 구현에서 검증한다.
-
-- [ ] 실제 API 키가 GitHub에 노출되지 않았는지 최종 확인한다.
-
-
-
----
-
-
-
-\## 14. 보너스 요구사항
-
-
-
-보너스 기능은 필수 기능이 모두 완료된 후에만 진행한다.
-
-
-
-- [ ] `list` 서브커맨드로 뉴스 목록을 조회한다.
-
-- [ ] `show` 서브커맨드로 뉴스 상세 내용을 조회한다.
-
-- [ ] 카테고리·날짜·키워드 필터링을 지원한다.
-
-- [ ] 페이지네이션을 지원한다.
-
-- [ ] Gemini를 이용한 긍정·부정·중립 감성 분석을 지원한다.
-
-- [ ] 감성 분석 결과를 시각화한다.
-
-- [ ] cron 또는 Windows 작업 스케줄러 사용 방법을 README에 작성한다.
-
-
-
----
-
-
-
-\## 15. 최종 제출 전 확인
-
-
-
-- [ ] 필수 기능을 우선 완료했다.
-
-- [ ] 과제 요구사항과 Issue 구현 결과를 대조했다.
-
-- [ ] 모든 PR이 리뷰를 거쳐 `main`에 병합됐다.
-
-- [ ] 열려 있는 필수 Issue가 없다.
-
-- [ ] `pytest`가 모두 통과한다.
-
-- [ ] 실제 RSS 수집을 확인했다.
-
-- [ ] 실제 기사 크롤링을 확인했다.
-
-- [ ] 실제 Gemini 요약을 확인했다.
-
-- [ ] 실제 Gemini 인사이트 분석을 확인했다.
-
-- [ ] 차트 PNG를 확인했다.
-
-- [ ] TXT 또는 MD 리포트를 확인했다.
-
-- [ ] CSV·JSONL·Excel 결과를 확인했다.
-
-- [ ] 새 환경에서 README만 보고 실행할 수 있다.
-
-- [ ] API 키와 개인정보가 저장소에 없다.
-
-- [ ] 내부 마감일인 2026-08-26까지 통합을 완료했다.
+- [x] 제목·URL 필수 필드를 검증한다.
+- [x] HTML 엔티티·태그·중복 공백을 정규화한다.
+- [x] 추적 쿼리와 fragment를 제거하여 URL을 정규화한다.
+- [x] RSS/ISO 날짜를 ISO 8601 형식으로 통일하고 잘못된 값은 결측 처리한다.
+- [x] 본문 결측을 빈 문자열로 처리한다.
+- [x] `skip`/`upsert` 중복 정책을 적용한다.
+- [x] raw와 분리된 `clean_news`에 영구 저장한다.
+
+검증: `tests/test_cleaning.py`
+
+## 4. AI 뉴스 요약
+
+- [x] OpenAI 공식 SDK 호출과 API 키 없는 Mock Provider를 제공한다.
+- [x] `--all`, `--id`, `--unsummarized`, `--limit`, `--force`를 제공한다.
+- [x] 이미 요약된 기사는 기본 스킵한다.
+- [x] 본문이 없으면 API 호출 없이 `not_ready`로 처리한다.
+- [x] 입력 길이와 최대 출력 토큰을 제한한다.
+- [x] 요약문과 핵심 내용의 JSON 구조를 검증한다.
+- [x] API 인증·요청 제한·타임아웃·응답 오류를 구분하고 실패 기사만 건너뛴다.
+- [x] 요약, 핵심 내용, 상태, 시각, Provider·모델을 SQLite에 저장한다.
+- [x] Mock 결과에 입력 기사 제목이 포함된다.
+
+검증: `tests/test_ai_providers.py`, `tests/test_ai_services.py`
+
+## 5. AI 인사이트 분석
+
+- [x] 기간과 카테고리로 요약 뉴스를 선택한다.
+- [x] 주요 트렌드, 핵심 키워드, 주요 이슈, 공통점, 차이점, 시사점을 분석한다.
+- [x] 알려진 기본 카테고리와 상세 카테고리 모두 균형 선택할 수 있다.
+- [x] 분석 결과와 사용 기사 ID·카테고리 집계를 `analysis_results`에 저장한다.
+- [x] `--list-results`, `--result-id`로 저장 결과를 조회한다.
+- [x] 최소 기사 수 미달을 사용자에게 명확히 알린다.
+
+검증: `tests/test_ai_services.py`
+
+## 6. 시각화와 리포트
+
+- [x] 실제 SQLite 데이터로 카테고리별 뉴스 수 막대 차트를 생성한다.
+- [x] 실제 SQLite 데이터로 일자별 뉴스 추이 선 차트를 생성한다.
+- [x] Windows·macOS·Nanum 한글 폰트를 탐색해 적용한다.
+- [x] 차트를 PNG로 저장한다.
+- [x] 정제율·중복률·요약률·필수 필드 완성률·본문 확보율을 포함한다.
+- [x] 카테고리 TOP N을 포함한다.
+- [x] 최신 AI 인사이트를 포함한다.
+- [x] 콘솔 출력과 TXT/MD 파일 저장을 지원한다.
+
+검증: `tests/test_reporter.py`
+
+## 7. 데이터 내보내기
+
+- [x] CSV, JSONL, Excel 세 형식을 지원한다.
+- [x] `--status summarized`와 `unsummarized` 필터를 지원한다.
+- [x] 카테고리와 기간 필터를 지원한다.
+- [x] 누락 날짜를 기간 필터에서 안전하게 제외한다.
+- [x] 전체 행을 내보내며 같은 시각의 파일명 충돌을 방지한다.
+- [x] Excel 헤더·줄바꿈·열 너비를 적용한다.
+- [x] 기존 명시 파일을 실수로 덮어쓰지 않는다.
+
+검증: `tests/test_exporter.py`
+
+## 8. 설정·로깅·저장·구조
+
+- [x] `config.json`으로 API 환경변수명, URL, 모델, 제한, 중복 정책, 경로를 관리한다.
+- [x] API 키는 `OPENAI_API_KEY` 환경변수에서만 읽는다.
+- [x] `.env`, DB, 로그, 결과 파일은 `.gitignore`로 제외한다.
+- [x] `logging`의 INFO/WARNING/ERROR와 회전 파일 로그를 사용한다.
+- [x] SQLite를 영구 저장소로 사용하며 List/Dict만으로 보관하지 않는다.
+- [x] collectors/providers/services/DB/CLI 등 4개 이상의 모듈로 분리한다.
+- [x] Windows와 macOS 설치·실행법을 README에 작성한다.
+
+검증: `tests/test_config.py`, `tests/test_database.py`, `tests/test_cli.py`
+
+## 9. 전체 연결과 품질
+
+- [x] 수집 → raw → clean → Mock 요약 → Mock 분석 → 리포트 → CSV/JSONL/Excel을 연결한다.
+- [x] 자동 테스트에서는 실제 뉴스 사이트와 OpenAI API를 호출하지 않는다.
+- [x] Windows·Ubuntu·macOS GitHub Actions 테스트를 구성한다.
+- [x] `git diff --check`로 공백 오류를 검사한다.
+- [ ] 실제 OpenAI API로 소량 요약·분석을 최종 1회 검증한다.
+- [ ] 최종 `main`에서 전체 테스트와 대표 CLI 시연을 다시 수행한다.
+
+검증: `tests/test_pipeline.py`, `.github/workflows/tests.yml`
+
+## 10. 보너스
+
+- [ ] `list`, `show` 뉴스 조회 서브커맨드와 페이지네이션
+- [ ] 감성 분석과 감성 차트
+- [x] cron과 Windows 작업 스케줄러 안내
+
+보너스 미구현 항목은 과제 필수 제출 조건이 아닙니다.
+
+## 최종 수동 검증 명령
+
+```bash
+pytest -q
+git diff --check
+python main.py --help
+python main.py fetch --method all --category it --limit 3 --delay 1.5 --duplicate-policy upsert
+python main.py clean --all --duplicate-policy upsert
+python main.py summarize --unsummarized --limit 3 --provider mock
+python main.py analyze --category it --limit 3 --provider mock
+python main.py report --category it --top-n 3 --format md
+python main.py export --format csv --status summarized
+python main.py export --format jsonl --status all
+python main.py export --format xlsx --status summarized
+```
+
+OpenAI 키가 준비된 환경에서는 Mock 명령 중 요약·분석 각 1회를 `--provider openai`로 별도 실행합니다.

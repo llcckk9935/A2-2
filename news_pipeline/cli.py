@@ -108,14 +108,14 @@ def create_parser() -> argparse.ArgumentParser:
     summary_target.add_argument("--unsummarized", action="store_true")
     summarize.add_argument("--limit", type=positive_int)
     summarize.add_argument("--force", action="store_true")
-    summarize.add_argument("--provider", choices=("gemini", "mock"))
+    summarize.add_argument("--provider", choices=("openai", "mock"))
     summarize.set_defaults(handler=_run_summarize)
 
     analyze = subparsers.add_parser("analyze", help="기간·카테고리별 AI 인사이트 분석")
     _add_date_filters(analyze)
     analyze.add_argument("--category", type=lower_text, choices=CATEGORIES)
     analyze.add_argument("--limit", type=positive_int)
-    analyze.add_argument("--provider", choices=("gemini", "mock"))
+    analyze.add_argument("--provider", choices=("openai", "mock"))
     analysis_query = analyze.add_mutually_exclusive_group()
     analysis_query.add_argument("--list-results", action="store_true")
     analysis_query.add_argument("--result-id", type=positive_int)
@@ -139,7 +139,7 @@ def create_parser() -> argparse.ArgumentParser:
     export.add_argument("--category", type=lower_text, choices=CATEGORIES)
     _add_date_filters(export)
     export.add_argument("--output")
-    export.set_defaults(handler=_feature_pending)
+    export.set_defaults(handler=_run_export)
 
     return parser
 
@@ -159,18 +159,6 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
         generation_values = (args.date_from, args.date_to, args.category, args.limit, args.provider)
         if any(value is not None for value in generation_values):
             parser.error("분석 결과 조회 옵션과 새 분석 생성 옵션을 함께 사용할 수 없습니다.")
-
-
-def _feature_pending(
-    args: argparse.Namespace,
-    _config: AppConfig,
-    _project_root: Path,
-) -> int:
-    logging.getLogger("cli").warning(
-        "'%s' 기능의 골격만 준비되었습니다. 담당 Issue에서 구현하세요.",
-        args.command,
-    )
-    return 1
 
 
 def _run_fetch(
@@ -250,15 +238,51 @@ def _run_report(
 ) -> int:
     from news_pipeline.services.reporter import ReporterService
 
-    service = ReporterService()
+    database_path = resolve_project_path(project_root, config.database.path)
+    output_directory = resolve_project_path(project_root, config.report.output_directory)
+    service = ReporterService(
+        database_path,
+        output_directory=output_directory,
+        chart_dpi=config.report.chart_dpi,
+    )
     service.generate(
         date_from=args.date_from,
         date_to=args.date_to,
         category=args.category,
         top_n=args.top_n,
         output_format=args.format,
-        output=args.output,
+        output=(
+            str(resolve_project_path(project_root, args.output))
+            if args.output
+            else None
+        ),
     )
+    return 0
+
+
+def _run_export(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.services.exporter import ExporterService
+
+    try:
+        path = ExporterService().export(
+            output_format=args.format,
+            status=args.status,
+            category=args.category,
+            date_from=args.date_from,
+            date_to=args.date_to,
+            output=args.output,
+            config=config,
+            project_root=project_root,
+        )
+    except (OSError, ValueError) as exc:
+        logging.getLogger("cli").error("데이터 내보내기 실패: %s", exc)
+        print(f"[ERROR] 데이터 내보내기 실패: {exc}")
+        return 2
+    print(f"내보내기 완료: {path}")
     return 0
 
 
