@@ -93,13 +93,13 @@ def create_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--date", type=iso_date)
     fetch.add_argument("--delay", type=non_negative_float)
     fetch.add_argument("--duplicate-policy", choices=("skip", "upsert"))
-    fetch.set_defaults(handler=_feature_pending)
+    fetch.set_defaults(handler=_run_fetch)
 
     clean = subparsers.add_parser("clean", help="raw 뉴스를 검증하고 정제")
     clean.add_argument("--all", action="store_true", help="이미 정제된 항목도 대상으로 선택")
     clean.add_argument("--limit", type=positive_int)
     clean.add_argument("--duplicate-policy", choices=("skip", "upsert"))
-    clean.set_defaults(handler=_feature_pending)
+    clean.set_defaults(handler=_run_clean)
 
     summarize = subparsers.add_parser("summarize", help="뉴스 본문 AI 요약")
     summary_target = summarize.add_mutually_exclusive_group(required=True)
@@ -171,6 +171,77 @@ def _feature_pending(
         args.command,
     )
     return 1
+
+
+def _run_fetch(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.collectors import ArticleCrawler, RSSCollector
+    from news_pipeline.database import Database
+    from news_pipeline.services.collection_service import CollectionService
+
+    source_config = config.news.sources.get(args.source)
+    if source_config is None or not source_config.enabled:
+        print(f"[ERROR] 사용할 수 없는 뉴스 소스입니다: {args.source}")
+        return 2
+
+    database_path = resolve_project_path(project_root, config.database.path)
+    rss_collector = RSSCollector(
+        source=args.source,
+        rss_urls=source_config.rss_urls,
+        timeout=config.news.request_timeout_seconds,
+        user_agent=config.news.user_agent,
+    )
+    article_crawler = ArticleCrawler(
+        timeout=config.news.request_timeout_seconds,
+        user_agent=config.news.user_agent,
+        selectors=source_config.article_selectors.model_dump(),
+        respect_robots_txt=source_config.respect_robots_txt,
+    )
+    stats = CollectionService(
+        Database(database_path),
+        rss_collector,
+        article_crawler,
+    ).fetch(
+        method=args.method,
+        category=args.category,
+        limit=args.limit,
+        delay=args.delay if args.delay is not None else config.news.crawl_delay_seconds,
+        duplicate_policy=args.duplicate_policy or config.news.duplicate_policy,
+        published_date=args.date,
+    )
+    print(
+        "수집 완료: "
+        f"요청={stats.requested_count}, 저장={stats.success_count}, "
+        f"실패={stats.failure_count}, 중복={stats.duplicate_count}, "
+        f"스킵={stats.skipped_count}"
+    )
+    return 0 if stats.failure_count == 0 else 2
+
+
+def _run_clean(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.services.cleaning import CleaningService
+
+    database_path = resolve_project_path(project_root, config.database.path)
+    duplicate_policy = args.duplicate_policy or config.news.duplicate_policy
+    stats = CleaningService(database_path).clean(
+        include_cleaned=args.all,
+        limit=args.limit,
+        duplicate_policy=duplicate_policy,
+    )
+    print(
+        "정제 완료: "
+        f"대상={stats.requested_count}, 성공={stats.success_count}, "
+        f"실패={stats.failure_count}, 중복={stats.duplicate_count}, "
+        f"스킵={stats.skipped_count}"
+    )
+    return 0 if stats.failure_count == 0 else 2
 
 def _run_report(
     args: argparse.Namespace,
