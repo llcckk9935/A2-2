@@ -58,6 +58,12 @@
     "max_retries": 2,
     "retry_base_seconds": 1.0
   },
+  "analysis": {
+    "max_articles": 50,
+    "max_summary_chars": 1000,
+    "minimum_articles": 2,
+    "balance_categories": true
+  },
   "report": {
     "default_top_n": 5,
     "chart_dpi": 150,

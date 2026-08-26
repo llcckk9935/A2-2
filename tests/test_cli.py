@@ -4,13 +4,16 @@ import io
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+from news_pipeline.config import AIConfig, AnalysisConfig
+from news_pipeline.providers.base import ProviderTimeoutError
 from news_pipeline.cli import (
     create_parser,
     execute_command,
     resolve_provider,
     validate_args,
+    _run_analyze,
 )
 
 COMMANDS = (
@@ -118,3 +121,26 @@ class CLITestCase(unittest.TestCase):
                 )
 
         self.assertNotEqual(exit_info.exception.code, 0)
+    def test_analyze_provider_error_returns_user_facing_failure_code(self):
+        args = SimpleNamespace(
+            provider="mock",
+            list_results=False,
+            result_id=None,
+            date_from=None,
+            date_to=None,
+            category=None,
+            limit=None,
+        )
+        config = SimpleNamespace(
+            ai=AIConfig(provider="mock"),
+            analysis=AnalysisConfig(),
+            database=SimpleNamespace(path="data/news.db"),
+        )
+        with patch("news_pipeline.services.analyzer.AnalyzerService") as service_class:
+            service_class.return_value.analyze.side_effect = ProviderTimeoutError("timeout")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                exit_code = _run_analyze(args, config, Path("project"))
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("AI 인사이트 분석 실패", output.getvalue())

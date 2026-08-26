@@ -17,3 +17,6 @@ def create_provider(provider_name: str, config: AIConfig) -> AIProvider:
 
 
 __all__ = ["AIProvider", "GeminiProvider", "MockAIProvider", "create_provider"]
+from news_pipeline.providers.factory import create_provider
+
+__all__ = ["create_provider"]
