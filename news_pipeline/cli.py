@@ -127,7 +127,7 @@ def create_parser() -> argparse.ArgumentParser:
     report.add_argument("--top-n", type=positive_int, default=5)
     report.add_argument("--format", choices=("txt", "md"), default="md")
     report.add_argument("--output")
-    report.set_defaults(handler=_feature_pending)
+    report.set_defaults(handler=_run_report)
 
     export = subparsers.add_parser("export", help="정제 뉴스 파일 내보내기")
     export.add_argument("--format", choices=("csv", "jsonl", "xlsx"), required=True)
@@ -171,6 +171,24 @@ def _feature_pending(
         args.command,
     )
     return 1
+
+def _run_report(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.services.reporter import ReporterService
+
+    service = ReporterService()
+    service.generate(
+        date_from=args.date_from,
+        date_to=args.date_to,
+        category=args.category,
+        top_n=args.top_n,
+        output_format=args.format,
+        output=args.output,
+    )
+    return 0
 
 
 def run_cli(
