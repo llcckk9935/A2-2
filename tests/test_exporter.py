@@ -3,9 +3,14 @@ import tempfile
 import json
 import csv
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
+from news_pipeline.config import load_config
 from news_pipeline.services.exporter import ExporterService
+
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.json"
 
 
 def _make_test_db(db_path, rows):
@@ -72,7 +77,7 @@ class ExporterServiceTestCase(unittest.TestCase):
 
         from news_pipeline.database import Database
         db = Database(str(self.db_path))
-        rows = db.list_news(limit=1_000_000)
+        rows = db.list_news(limit=None)
         for row in rows:
             key_points = row.get("key_points")
             if isinstance(key_points, str):
@@ -86,7 +91,7 @@ class ExporterServiceTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.tmp_dir.cleanup()
-        
+
     def test_filter_status_summarized_only(self):
         filtered = self.service._filter_clean_news(
             self.news, status="summarized", category=None, date_from=None, date_to=None
@@ -104,7 +109,7 @@ class ExporterServiceTestCase(unittest.TestCase):
             self.news, status="all", category="it", date_from=None, date_to=None
         )
         self.assertTrue(all(n["category"] == "it" for n in filtered))
-        
+
     def test_filter_by_date_range(self):
         filtered = self.service._filter_clean_news(
             self.news, status="all", category=None,
@@ -117,7 +122,7 @@ class ExporterServiceTestCase(unittest.TestCase):
             self.news, status="summarized", category="economy", date_from=None, date_to=None
         )
         self.assertEqual(filtered, [])
-        
+
     def test_save_csv_uses_utf8_sig_encoding(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "test.csv"
@@ -189,3 +194,105 @@ class ExporterServiceTestCase(unittest.TestCase):
             self.assertEqual(
                 result_rows[0]["summary"], "요약에, 쉼표와\n줄바꿈이 포함된 경우"
             )
+
+
+class ExporterServiceIntegrationTestCase(unittest.TestCase):
+    """DB 삽입부터 ExporterService.export() 전체 흐름(조회→필터→저장)을 직접 검증한다."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.project_root = Path(self.tmp_dir.name)
+        self.db_path = self.project_root / "data" / "news.db"
+        _make_test_db(
+            self.db_path,
+            rows=[
+                {
+                    "raw_id": 1,
+                    "source": "inews24",
+                    "category": "it",
+                    "title": "AI 반도체 시장 급성장",
+                    "canonical_url": "https://example.com/1",
+                    "published_at": "2026-08-20",
+                    "summary": "AI 반도체 수요가 늘고 있다.",
+                    "key_points": '["수요 증가", "가격 상승"]',
+                    "summary_status": "summarized",
+                    "summarized_at": "2026-08-20T10:00:00",
+                },
+                {
+                    "raw_id": 2,
+                    "source": "inews24",
+                    "category": "economy",
+                    "title": "금리 동결 발표",
+                    "canonical_url": "https://example.com/2",
+                    "published_at": "2026-08-21",
+                    "summary_status": "pending",
+                },
+            ],
+        )
+
+        base_config, _ = load_config(CONFIG_PATH)
+        self.export_dir = self.project_root / "exports"
+        self.config = base_config.model_copy(
+            update={
+                "database": base_config.database.model_copy(update={"path": str(self.db_path)}),
+                "export": base_config.export.model_copy(
+                    update={"output_directory": str(self.export_dir)}
+                ),
+            }
+        )
+        self.service = ExporterService()
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    def _export(self, **overrides):
+        params = dict(
+            output_format="csv",
+            status="all",
+            category=None,
+            date_from=None,
+            date_to=None,
+            output=None,
+            config=self.config,
+            project_root=self.project_root,
+        )
+        params.update(overrides)
+        return self.service.export(**params)
+
+    def test_export_full_flow_writes_expected_csv_rows(self):
+        """mock 없이 실제 DB 조회 → 필터 → CSV 저장까지 전체 흐름을 검증한다."""
+        result_path = self._export(output_format="csv")
+
+        self.assertTrue(result_path.exists())
+        with open(result_path, encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.DictReader(f))
+
+        self.assertEqual(len(rows), 2)
+        titles = {row["title"] for row in rows}
+        self.assertEqual(titles, {"AI 반도체 시장 급성장", "금리 동결 발표"})
+
+    def test_export_full_flow_applies_status_filter(self):
+        """export()에 전달한 status 필터가 실제 DB 조회 결과에 반영되는지 확인한다."""
+        result_path = self._export(output_format="jsonl", status="summarized")
+
+        with open(result_path, encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f]
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["summary_status"], "summarized")
+
+    def test_export_same_second_consecutive_runs_produce_different_files(self):
+        """같은 시각에 연속 실행해도 파일이 서로 다르며 기존 파일을 덮어쓰지 않는다."""
+        fixed_now = datetime(2026, 8, 26, 12, 0, 0, 123456)
+        with patch("news_pipeline.services.exporter.datetime") as mock_datetime:
+            mock_datetime.now.return_value = fixed_now
+            first_path = self._export(output_format="csv")
+            second_path = self._export(output_format="csv")
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertTrue(first_path.exists())
+        self.assertTrue(second_path.exists())
+        with open(first_path, encoding="utf-8-sig", newline="") as f:
+            self.assertEqual(len(list(csv.DictReader(f))), 2)
+        with open(second_path, encoding="utf-8-sig", newline="") as f:
+            self.assertEqual(len(list(csv.DictReader(f))), 2)

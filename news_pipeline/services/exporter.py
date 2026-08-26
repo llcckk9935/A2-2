@@ -50,15 +50,11 @@ class ExporterService:
             else:
                 output_dir = output_path_candidate
                 output_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"clean_news_{timestamp}.{output_format}"
-                output_path = output_dir / filename
+                output_path = self._build_output_path(output_dir, output_format)
         else:
             output_dir = resolve_project_path(project_root, config.export.output_directory)
             output_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"clean_news_{timestamp}.{output_format}"
-            output_path = output_dir / filename
+            output_path = self._build_output_path(output_dir, output_format)
 
         if not news:
             logger.info("조회 결과가 없습니다. 내보낼 데이터가 0건입니다.")
@@ -76,13 +72,28 @@ class ExporterService:
 
         return result_path
 
+    def _build_output_path(self, output_dir: Path, output_format: str) -> Path:
+        """타임스탬프 기반 파일명을 생성한다.
+
+        마이크로초까지 포함해 같은 초에 재실행해도 충돌 가능성을 낮추고,
+        그래도 동일 파일명이 이미 존재하면 번호를 붙여 절대 덮어쓰지 않는다.
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        base_name = f"clean_news_{timestamp}"
+        output_path = output_dir / f"{base_name}.{output_format}"
+        counter = 1
+        while output_path.exists():
+            output_path = output_dir / f"{base_name}_{counter}.{output_format}"
+            counter += 1
+        return output_path
+
     def _fetch_clean_news(self, config: AppConfig, project_root: Path) -> list[dict]:
         """config.database.path의 실제 SQLite clean_news 테이블을 조회한다."""
         from news_pipeline.database import Database
 
         db_path = resolve_project_path(project_root, config.database.path)
         db = Database(str(db_path))
-        rows = db.list_news(limit=1_000_000)
+        rows = db.list_news(limit=None)
 
         for row in rows:
             key_points = row.get("key_points")
@@ -93,7 +104,7 @@ class ExporterService:
                     row["key_points"] = []
 
         return [{col: row.get(col) for col in self.EXPORT_COLUMNS} for row in rows]
-        
+
     def _filter_clean_news(
         self,
         news_list: list[dict],
@@ -118,7 +129,7 @@ class ExporterService:
                 continue
             filtered.append(news)
         return filtered
-        
+
     # 내보낼 컬럼 순서 — 기사 전문, raw_payload 등 내부/민감 정보는 제외
     EXPORT_COLUMNS = (
         "id",
@@ -145,7 +156,7 @@ class ExporterService:
                 row["key_points"] = ", ".join(row["key_points"]) if row["key_points"] else ""
                 writer.writerow(row)
         return output_path
-    
+
     def _save_jsonl(self, news_list: list[dict], output_path: Path) -> Path:
         """clean_news 목록을 JSONL 파일로 저장한다. 한 줄에 뉴스 하나씩 기록한다."""
         with open(output_path, "w", encoding="utf-8") as file:
@@ -154,7 +165,7 @@ class ExporterService:
                 file.write(json.dumps(row, ensure_ascii=False))
                 file.write("\n")
         return output_path
-    
+
     def _save_xlsx(self, news_list: list[dict], output_path: Path) -> Path:
         """clean_news 목록을 Excel 파일로 저장한다."""
         workbook = Workbook()

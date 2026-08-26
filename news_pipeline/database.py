@@ -422,7 +422,7 @@ class Database:
         summary_status: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
-        limit: int = 50
+        limit: Optional[int] = 50
     ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM clean_news WHERE 1 = 1"
         params = []
@@ -438,8 +438,10 @@ class Database:
         if date_to:
             query += " AND published_at <= ?"
             params.append(date_to)
-        query += " ORDER BY published_at DESC, id DESC LIMIT ?"
-        params.append(limit)
+        query += " ORDER BY published_at DESC, id DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
 
         with closing(self.get_connection()) as conn:
             rows = conn.execute(query, params).fetchall()
