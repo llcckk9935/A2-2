@@ -28,7 +28,7 @@ class ExporterService:
             status, category, date_from, date_to,
         )
 
-        all_news = self._fetch_mock_clean_news()
+        all_news = self._fetch_clean_news(config, project_root)
         news = self._filter_clean_news(
             all_news,
             status=status,
@@ -38,17 +38,30 @@ class ExporterService:
         )
 
         if output:
-            output_dir = resolve_project_path(project_root, output)
+            output_path_candidate = resolve_project_path(project_root, output)
+            if output_path_candidate.suffix:
+                if output_path_candidate.suffix.lstrip(".") != output_format:
+                    raise ValueError(
+                        f"--output 확장자({output_path_candidate.suffix})가 "
+                        f"--format({output_format})과 일치하지 않습니다."
+                    )
+                output_path = output_path_candidate
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                output_dir = output_path_candidate
+                output_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"clean_news_{timestamp}.{output_format}"
+                output_path = output_dir / filename
         else:
             output_dir = resolve_project_path(project_root, config.export.output_directory)
-        output_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"clean_news_{timestamp}.{output_format}"
+            output_path = output_dir / filename
 
         if not news:
             logger.info("조회 결과가 없습니다. 내보낼 데이터가 0건입니다.")
-            
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"clean_news_{timestamp}.{output_format}"
-        output_path = output_dir / filename
 
         if output_format == "csv":
             result_path = self._save_csv(news, output_path)
@@ -63,38 +76,23 @@ class ExporterService:
 
         return result_path
 
-    def _fetch_mock_clean_news(self) -> list[dict]:
-        """임시 mock clean_news 데이터. 나중에 실제 DB 조회 함수로 교체 예정."""
-        return [
-            {
-                "id": 1,
-                "source": "inews24",
-                "category": "it",
-                "title": "AI 반도체 시장 급성장",
-                "canonical_url": "https://example.com/1",
-                "published_at": "2026-08-20",
-                "summary_status": "summarized",
-                "summary": "AI 반도체 수요가 늘고 있다.",
-                "key_points": ["수요 증가", "가격 상승"],
-                "summarized_at": "2026-08-20T10:00:00",
-                "created_at": "2026-08-20T09:00:00",
-                "updated_at": "2026-08-20T09:00:00",
-            },
-            {
-                "id": 2,
-                "source": "inews24",
-                "category": "economy",
-                "title": "금리 동결 발표",
-                "canonical_url": "https://example.com/2",
-                "published_at": "2026-08-21",
-                "summary_status": "pending",
-                "summary": None,
-                "key_points": [],
-                "summarized_at": None,
-                "created_at": "2026-08-21T09:00:00",
-                "updated_at": "2026-08-21T09:00:00",
-            },
-        ]
+    def _fetch_clean_news(self, config: AppConfig, project_root: Path) -> list[dict]:
+        """config.database.path의 실제 SQLite clean_news 테이블을 조회한다."""
+        from news_pipeline.database import Database
+
+        db_path = resolve_project_path(project_root, config.database.path)
+        db = Database(str(db_path))
+        rows = db.list_news(limit=1_000_000)
+
+        for row in rows:
+            key_points = row.get("key_points")
+            if isinstance(key_points, str):
+                try:
+                    row["key_points"] = json.loads(key_points)
+                except (json.JSONDecodeError, TypeError):
+                    row["key_points"] = []
+
+        return [{col: row.get(col) for col in self.EXPORT_COLUMNS} for row in rows]
         
     def _filter_clean_news(
         self,
