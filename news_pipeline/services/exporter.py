@@ -1,17 +1,167 @@
 """CSV·JSONL·Excel 내보내기 서비스 계약."""
 
 from pathlib import Path
-
+import logging
+import csv
+import json
+from openpyxl import Workbook
+from datetime import datetime
 
 class ExporterService:
     def export(
+    self,
+    *,
+    output_format: str,
+    status: str,
+    category: str | None,
+    date_from: str | None,
+    date_to: str | None,
+    output: str | None,
+) -> Path:
+        logger = logging.getLogger(__name__)
+
+        all_news = self._fetch_mock_clean_news()
+        news = self._filter_clean_news(
+            all_news,
+            status=status,
+            category=category,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output_dir = Path(output) if output else Path("exports")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"clean_news_{timestamp}.{output_format}"
+        output_path = output_dir / filename
+
+        if output_format == "csv":
+            result_path = self._save_csv(news, output_path)
+        elif output_format == "jsonl":
+            result_path = self._save_jsonl(news, output_path)
+        elif output_format == "xlsx":
+            result_path = self._save_xlsx(news, output_path)
+        else:
+            raise ValueError(f"지원하지 않는 형식입니다: {output_format}")
+
+        logger.info("내보내기 완료: %d건, 경로: %s", len(news), result_path)
+
+        return result_path
+
+    def _fetch_mock_clean_news(self) -> list[dict]:
+        """임시 mock clean_news 데이터. 나중에 실제 DB 조회 함수로 교체 예정."""
+        return [
+            {
+                "id": 1,
+                "source": "inews24",
+                "category": "it",
+                "title": "AI 반도체 시장 급성장",
+                "canonical_url": "https://example.com/1",
+                "published_at": "2026-08-20",
+                "summary_status": "summarized",
+                "summary": "AI 반도체 수요가 늘고 있다.",
+                "key_points": ["수요 증가", "가격 상승"],
+                "summarized_at": "2026-08-20T10:00:00",
+                "created_at": "2026-08-20T09:00:00",
+                "updated_at": "2026-08-20T09:00:00",
+            },
+            {
+                "id": 2,
+                "source": "inews24",
+                "category": "economy",
+                "title": "금리 동결 발표",
+                "canonical_url": "https://example.com/2",
+                "published_at": "2026-08-21",
+                "summary_status": "pending",
+                "summary": None,
+                "key_points": [],
+                "summarized_at": None,
+                "created_at": "2026-08-21T09:00:00",
+                "updated_at": "2026-08-21T09:00:00",
+            },
+        ]
+        
+    def _filter_clean_news(
         self,
+        news_list: list[dict],
         *,
-        output_format: str,
         status: str,
         category: str | None,
         date_from: str | None,
         date_to: str | None,
-        output: str | None,
-    ) -> Path:
-        raise NotImplementedError("Issue #10에서 데이터 내보내기를 구현하세요.")
+    ) -> list[dict]:
+        """조건에 맞는 clean_news만 걸러낸다."""
+        filtered = []
+        for news in news_list:
+            if status == "summarized" and news["summary_status"] != "summarized":
+                continue
+            if status == "unsummarized" and news["summary_status"] == "summarized":
+                continue
+            if category and news["category"] != category:
+                continue
+            if date_from and news["published_at"] < date_from:
+                continue
+            if date_to and news["published_at"] > date_to:
+                continue
+            filtered.append(news)
+        return filtered
+        
+    # 내보낼 컬럼 순서 — 기사 전문, raw_payload 등 내부/민감 정보는 제외
+    EXPORT_COLUMNS = (
+        "id",
+        "source",
+        "category",
+        "title",
+        "canonical_url",
+        "published_at",
+        "summary_status",
+        "summary",
+        "key_points",
+        "summarized_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def _save_csv(self, news_list: list[dict], output_path: Path) -> Path:
+        """clean_news 목록을 CSV 파일로 저장한다."""
+        with open(output_path, "w", newline="", encoding="utf-8-sig") as file:
+            writer = csv.DictWriter(file, fieldnames=self.EXPORT_COLUMNS)
+            writer.writeheader()
+            for news in news_list:
+                row = dict(news)
+                row["key_points"] = ", ".join(row["key_points"]) if row["key_points"] else ""
+                writer.writerow(row)
+        return output_path
+    
+    def _save_jsonl(self, news_list: list[dict], output_path: Path) -> Path:
+        """clean_news 목록을 JSONL 파일로 저장한다. 한 줄에 뉴스 하나씩 기록한다."""
+        with open(output_path, "w", encoding="utf-8") as file:
+            for news in news_list:
+                row = {key: news[key] for key in self.EXPORT_COLUMNS}
+                file.write(json.dumps(row, ensure_ascii=False))
+                file.write("\n")
+        return output_path
+    
+    def _save_xlsx(self, news_list: list[dict], output_path: Path) -> Path:
+        """clean_news 목록을 Excel 파일로 저장한다."""
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "clean_news"
+
+        sheet.append(self.EXPORT_COLUMNS)
+
+        for news in news_list:
+            key_points = ", ".join(news["key_points"]) if news["key_points"] else ""
+            row = []
+            for column in self.EXPORT_COLUMNS:
+                value = key_points if column == "key_points" else news[column]
+                row.append(value)
+            sheet.append(row)
+
+        for column_cells in sheet.columns:
+            max_length = max(len(str(cell.value)) for cell in column_cells)
+            sheet.column_dimensions[column_cells[0].column_letter].width = max_length + 2
+
+        workbook.save(output_path)
+        return output_path

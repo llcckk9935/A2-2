@@ -139,7 +139,7 @@ def create_parser() -> argparse.ArgumentParser:
     export.add_argument("--category", type=lower_text, choices=CATEGORIES)
     _add_date_filters(export)
     export.add_argument("--output")
-    export.set_defaults(handler=_feature_pending)
+    export.set_defaults(handler=_run_export)
 
     return parser
 
@@ -190,6 +190,23 @@ def _run_report(
     )
     return 0
 
+def _run_export(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.services.exporter import ExporterService
+
+    service = ExporterService()
+    service.export(
+        output_format=args.format,
+        status=args.status,
+        category=args.category,
+        date_from=args.date_from,
+        date_to=args.date_to,
+        output=args.output,
+    )
+    return 0
 
 def _make_provider(args: argparse.Namespace, config: AppConfig):
     from news_pipeline.providers.factory import create_provider
