@@ -24,10 +24,10 @@
         "enabled": true,
         "base_url": "https://www.inews24.com",
         "rss_urls": {
-          "politics": "",
-          "economy": "",
-          "society": "",
-          "it": ""
+          "politics": "https://www.inews24.com/rss/news_politics.xml",
+          "economy": "https://www.inews24.com/rss/news_economy.xml",
+          "society": "https://www.inews24.com/rss/news_society.xml",
+          "it": "https://www.inews24.com/rss/news_it.xml"
         }
       }
     }
