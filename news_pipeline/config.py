@@ -40,10 +40,32 @@ class DatabaseConfig(BaseModel):
     path: str = "data/news.db"
 
 
+class ArticleSelectorsConfig(BaseModel):
+    title: list[str] = Field(default_factory=lambda: ["h1"])
+    content: list[str] = Field(default_factory=lambda: ["#articleBody", "article"])
+    remove: list[str] = Field(
+        default_factory=lambda: [
+            "script",
+            "style",
+            "nav",
+            "aside",
+            ".advertisement",
+            ".ad",
+            ".reporter",
+            ".related-news",
+        ]
+    )
+    premium: list[str] = Field(
+        default_factory=lambda: [".paywall", ".premium", "[data-premium='true']"]
+    )
+
+
 class NewsSourceConfig(BaseModel):
     enabled: bool = True
     base_url: str
     rss_urls: dict[str, str] = Field(default_factory=dict)
+    respect_robots_txt: bool = True
+    article_selectors: ArticleSelectorsConfig = Field(default_factory=ArticleSelectorsConfig)
 
 
 class NewsConfig(BaseModel):
