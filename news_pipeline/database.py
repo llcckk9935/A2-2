@@ -175,6 +175,71 @@ class Database:
     def init_db(self) -> None:
         initialize_database(self.db_path)
 
+    def get_raw_news_by_url(self, url: str) -> Optional[Dict[str, Any]]:
+        """URL이 같은 raw 뉴스가 이미 저장되어 있는지 조회한다."""
+
+        with closing(self.get_connection()) as conn:
+            row = conn.execute(
+                "SELECT * FROM raw_news WHERE url = ?",
+                (url,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def start_collection_run(
+        self,
+        *,
+        source: str,
+        collection_method: str,
+        category: str,
+        requested_count: int,
+    ) -> int:
+        """수집 실행 시작 정보를 저장하고 실행 ID를 반환한다."""
+
+        with closing(self.get_connection()) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO collection_runs (
+                    source, collection_method, category, started_at,
+                    requested_count, status
+                ) VALUES (?, ?, ?, ?, ?, 'running')
+                """,
+                (source, collection_method, category, now_iso(), requested_count),
+            )
+            conn.commit()
+            return int(cursor.lastrowid)
+
+    def finish_collection_run(
+        self,
+        run_id: int,
+        *,
+        success_count: int,
+        failure_count: int,
+        duplicate_count: int,
+        status: str,
+        error_message: str | None = None,
+    ) -> None:
+        """수집 실행의 최종 통계와 상태를 기록한다."""
+
+        with closing(self.get_connection()) as conn:
+            conn.execute(
+                """
+                UPDATE collection_runs
+                SET finished_at = ?, success_count = ?, failure_count = ?,
+                    duplicate_count = ?, status = ?, error_message = ?
+                WHERE id = ?
+                """,
+                (
+                    now_iso(),
+                    success_count,
+                    failure_count,
+                    duplicate_count,
+                    status,
+                    error_message,
+                    run_id,
+                ),
+            )
+            conn.commit()
+
     # 1. raw_news 저장
     def save_raw_news(self, data: Dict[str, Any], policy: str = "upsert") -> int:
         now = now_iso()
