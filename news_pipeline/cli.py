@@ -99,7 +99,7 @@ def create_parser() -> argparse.ArgumentParser:
     clean.add_argument("--all", action="store_true", help="이미 정제된 항목도 대상으로 선택")
     clean.add_argument("--limit", type=positive_int)
     clean.add_argument("--duplicate-policy", choices=("skip", "upsert"))
-    clean.set_defaults(handler=_feature_pending)
+    clean.set_defaults(handler=_run_clean)
 
     summarize = subparsers.add_parser("summarize", help="뉴스 본문 AI 요약")
     summary_target = summarize.add_mutually_exclusive_group(required=True)
@@ -171,6 +171,29 @@ def _feature_pending(
         args.command,
     )
     return 1
+
+
+def _run_clean(
+    args: argparse.Namespace,
+    config: AppConfig,
+    project_root: Path,
+) -> int:
+    from news_pipeline.services.cleaning import CleaningService
+
+    database_path = resolve_project_path(project_root, config.database.path)
+    duplicate_policy = args.duplicate_policy or config.news.duplicate_policy
+    stats = CleaningService(database_path).clean(
+        include_cleaned=args.all,
+        limit=args.limit,
+        duplicate_policy=duplicate_policy,
+    )
+    print(
+        "정제 완료: "
+        f"대상={stats.requested_count}, 성공={stats.success_count}, "
+        f"실패={stats.failure_count}, 중복={stats.duplicate_count}, "
+        f"스킵={stats.skipped_count}"
+    )
+    return 0 if stats.failure_count == 0 else 2
 
 def _run_report(
     args: argparse.Namespace,
