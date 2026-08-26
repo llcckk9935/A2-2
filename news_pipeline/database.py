@@ -136,6 +136,42 @@ class Database:
     def get_connection(self) -> sqlite3.Connection:
         return connect(self.db_path)
 
+    def list_raw_news(
+        self,
+        *,
+        include_cleaned: bool = False,
+        limit: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """정제 대상을 ID 순서로 조회한다.
+
+        기본값에서는 이미 ``clean_news``에 연결된 raw 항목을 제외한다.
+        ``include_cleaned``가 참이면 재정제(upsert) 대상을 포함한다.
+        """
+
+        query = "SELECT raw_news.* FROM raw_news"
+        params: list[Any] = []
+        if not include_cleaned:
+            query += " LEFT JOIN clean_news ON clean_news.raw_id = raw_news.id"
+            query += " WHERE clean_news.id IS NULL"
+        query += " ORDER BY raw_news.id ASC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with closing(self.get_connection()) as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_clean_news_by_raw_id(self, raw_id: int) -> Optional[Dict[str, Any]]:
+        """raw 뉴스에 연결된 정제 레코드를 반환한다."""
+
+        with closing(self.get_connection()) as conn:
+            row = conn.execute(
+                "SELECT * FROM clean_news WHERE raw_id = ?",
+                (raw_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
     def init_db(self) -> None:
         initialize_database(self.db_path)
 
