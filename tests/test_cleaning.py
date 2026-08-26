@@ -4,12 +4,21 @@ import json
 
 from news_pipeline.cli import run_cli
 from news_pipeline.database import Database
-from news_pipeline.services.cleaning import CleaningService, normalize_text, normalize_url
+from news_pipeline.services.cleaning import (
+    CleaningService,
+    normalize_published_at,
+    normalize_text,
+    normalize_url,
+)
 
 
 def test_normalize_text():
     html_text = "<p>  안녕하세요!   <b>뉴스</b>입니다. </p>"
     assert normalize_text(html_text) == "안녕하세요! 뉴스입니다."
+
+
+def test_normalize_text_decodes_html_entities():
+    assert normalize_text("&quot;AI&quot;&hellip;반도체&middot;클라우드") == '"AI"…반도체·클라우드'
 
 
 def test_normalize_url():
@@ -18,6 +27,16 @@ def test_normalize_url():
     assert "utm_source" not in canonical
     assert "fbclid" not in canonical
     assert canonical == "https://example.com/news?id=7"
+
+
+def test_normalize_published_at_supports_rss_and_iso_dates():
+    assert normalize_published_at("Wed, 26 Aug 2026 12:00:00 +0900") == (
+        "2026-08-26T12:00:00+09:00"
+    )
+    assert normalize_published_at("2026-08-26T12:00:00Z") == (
+        "2026-08-26T12:00:00+00:00"
+    )
+    assert normalize_published_at("잘못된 날짜") is None
 
 
 def _save_raw(database: Database, *, title="<b>테스트 뉴스</b>", content="<p>본문</p>"):

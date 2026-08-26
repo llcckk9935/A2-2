@@ -1,7 +1,4 @@
-"""SQLite 연결과 스키마 초기화를 담당한다.
-
-CRUD 함수는 Issue #3에서 이 모듈에 추가한다. 다른 모듈에는 SQL을 작성하지 않는다.
-"""
+"""SQLite 스키마와 뉴스 파이프라인의 영구 저장 CRUD를 담당한다."""
 
 from __future__ import annotations
 
@@ -422,24 +419,26 @@ class Database:
         summary_status: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
-        limit: int = 50
+        limit: Optional[int] = 50
     ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM clean_news WHERE 1 = 1"
         params = []
-        if category:
+        if category and category != "all":
             query += " AND category = ?"
             params.append(category)
         if summary_status:
             query += " AND summary_status = ?"
             params.append(summary_status)
         if date_from:
-            query += " AND published_at >= ?"
+            query += " AND substr(published_at, 1, 10) >= ?"
             params.append(date_from)
         if date_to:
-            query += " AND published_at <= ?"
+            query += " AND substr(published_at, 1, 10) <= ?"
             params.append(date_to)
-        query += " ORDER BY published_at DESC, id DESC LIMIT ?"
-        params.append(limit)
+        query += " ORDER BY published_at DESC, id DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
 
         with closing(self.get_connection()) as conn:
             rows = conn.execute(query, params).fetchall()
@@ -521,6 +520,38 @@ class Database:
         with closing(self.get_connection()) as conn:
             rows = conn.execute("SELECT summary_status, COUNT(*) AS count FROM clean_news GROUP BY summary_status ORDER BY count DESC").fetchall()
             return {r["summary_status"]: r["count"] for r in rows}
+
+    def get_pipeline_counts(self) -> Dict[str, int]:
+        """리포트 품질 지표에 필요한 실제 저장소 집계를 반환한다."""
+        with closing(self.get_connection()) as conn:
+            raw_count = conn.execute("SELECT COUNT(*) FROM raw_news").fetchone()[0]
+            clean_count = conn.execute("SELECT COUNT(*) FROM clean_news").fetchone()[0]
+            summarized_count = conn.execute(
+                "SELECT COUNT(*) FROM clean_news WHERE summary_status = 'summarized'"
+            ).fetchone()[0]
+            duplicate_count = conn.execute(
+                "SELECT COALESCE(SUM(duplicate_count), 0) FROM collection_runs"
+            ).fetchone()[0]
+        return {
+            "raw_count": int(raw_count),
+            "clean_count": int(clean_count),
+            "summarized_count": int(summarized_count),
+            "duplicate_count": int(duplicate_count),
+        }
+
+    def get_latest_analysis_result(
+        self, category: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """요청 카테고리에 맞는 최신 완료 분석 결과를 반환한다."""
+        query = "SELECT id FROM analysis_results WHERE status = 'completed'"
+        params: list[Any] = []
+        if category and category != "all":
+            query += " AND category = ?"
+            params.append(category)
+        query += " ORDER BY created_at DESC, id DESC LIMIT 1"
+        with closing(self.get_connection()) as conn:
+            row = conn.execute(query, params).fetchone()
+        return self.get_analysis_result(row["id"]) if row else None
 
 
 # 이전 코드 호환성용 alias

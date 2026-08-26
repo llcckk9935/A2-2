@@ -8,7 +8,7 @@ CLI
 → SQLite raw_news
 → 정제 및 중복 처리
 → SQLite clean_news
-→ Gemini 또는 Mock 요약
+→ OpenAI 또는 Mock 요약
 → 기간·카테고리별 AI 분석
 → 차트·리포트·내보내기
 ```
@@ -35,7 +35,7 @@ CLI
 ## 공통 규칙
 
 - 중복 정책 우선순위: CLI → `config.json` → `skip`
-- API 키: `GEMINI_API_KEY` 환경변수 또는 `.env`
+- API 키: `OPENAI_API_KEY` 환경변수 또는 `.env`
 - 경로 처리: `pathlib.Path`
 - 실제 SQL: `database.py`에만 작성
 

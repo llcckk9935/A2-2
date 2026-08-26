@@ -58,6 +58,16 @@ class AIServicesTestCase(unittest.TestCase):
         fetched = service.get_result(result.id)
         self.assertIn("Mock", fetched.insights.keywords)
 
+    def test_analysis_balances_categories_present_in_database(self):
+        seed_clean_news(self.path, content="본문", status="summarized", summary="첫 요약", category="통신/뉴미디어", url="https://example.com/detail-1")
+        seed_clean_news(self.path, content="본문", status="summarized", summary="둘째 요약", category="반도체/디스플레이", url="https://example.com/detail-2")
+        service = AnalyzerService(self.path, self.ai_config, AnalysisConfig(minimum_articles=2), self.provider)
+
+        result = service.analyze(date_from=None, date_to=None, category=None, limit=10)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.article_count, 2)
+
     def test_date_to_includes_articles_published_later_that_day(self):
         seed_clean_news(self.path, content="본문", status="summarized", summary="첫 번째 요약", category="it", url="https://example.com/late-1", published_at="2026-08-20T12:00:00")
         seed_clean_news(self.path, content="본문", status="summarized", summary="두 번째 요약", category="economy", url="https://example.com/late-2", published_at="2026-08-20T23:59:59")

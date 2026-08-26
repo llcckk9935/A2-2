@@ -63,10 +63,10 @@ class CLITestCase(unittest.TestCase):
                 validate_args(parser, args)
 
     def test_cli_provider_overrides_config_default(self):
-        args = SimpleNamespace(provider="gemini")
+        args = SimpleNamespace(provider="openai")
         config = SimpleNamespace(ai=SimpleNamespace(provider="mock"))
 
-        self.assertEqual(resolve_provider(args, config), "gemini")
+        self.assertEqual(resolve_provider(args, config), "openai")
 
     def test_config_provider_is_used_when_cli_option_is_missing(self):
         args = SimpleNamespace(provider=None)
@@ -77,7 +77,7 @@ class CLITestCase(unittest.TestCase):
     def test_execute_command_passes_arguments_to_service_handler(self):
         args = SimpleNamespace(
             command="summarize",
-            provider="gemini",
+            provider="openai",
             limit=10,
         )
         config = SimpleNamespace(ai=SimpleNamespace(provider="mock"))
@@ -92,11 +92,11 @@ class CLITestCase(unittest.TestCase):
         )
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(args.provider, "gemini")
+        self.assertEqual(args.provider, "openai")
         service_handler.assert_called_once_with(args, config, project_root)
 
     def test_supported_providers_are_accepted(self):
-        for provider in ("gemini", "mock"):
+        for provider in ("openai", "mock"):
             with self.subTest(provider=provider):
                 args = create_parser().parse_args(
                     [

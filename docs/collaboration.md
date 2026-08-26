@@ -40,4 +40,4 @@ git push -u origin feature/4-rss-collector
 - `main`에 직접 push하지 않는다.
 - `.env`, API 키, 개인 DB, 로그, 생성 리포트를 커밋하지 않는다.
 - 다른 담당자의 공용 파일을 협의 없이 대규모 수정하지 않는다.
-- 단위 테스트에서 실제 뉴스 사이트나 Gemini API를 호출하지 않는다.
+- 단위 테스트에서 실제 뉴스 사이트나 OpenAI API를 호출하지 않는다.

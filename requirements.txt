@@ -1,6 +1,5 @@
 beautifulsoup4>=4.12,<5
 feedparser>=6,<7
-google-genai>=2,<3
 matplotlib>=3.8,<4
 openpyxl>=3.1,<4
 pydantic>=2.7,<3
