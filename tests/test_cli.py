@@ -14,6 +14,7 @@ from news_pipeline.cli import (
     resolve_provider,
     validate_args,
     _run_analyze,
+    _run_export,
 )
 
 COMMANDS = (
@@ -144,3 +145,26 @@ class CLITestCase(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertIn("AI 인사이트 분석 실패", output.getvalue())
+
+    def test_export_output_extension_mismatch_returns_user_facing_failure_code(self):
+        """--output 확장자가 --format과 다르면 traceback 없이 에러 메시지와 실패 코드를 반환한다."""
+        args = SimpleNamespace(
+            format="csv",
+            status="all",
+            category=None,
+            date_from=None,
+            date_to=None,
+            output="result.xlsx",
+        )
+        config = SimpleNamespace()
+        with patch("news_pipeline.services.exporter.ExporterService") as service_class:
+            service_class.return_value.export.side_effect = ValueError(
+                "--output 확장자(.xlsx)가 --format(csv)과 일치하지 않습니다."
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                exit_code = _run_export(args, config, Path("project"))
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("[ERROR]", output.getvalue())
+        self.assertIn("일치하지 않습니다", output.getvalue())

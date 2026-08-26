@@ -110,6 +110,13 @@ class ExporterServiceTestCase(unittest.TestCase):
         )
         self.assertTrue(all(n["category"] == "it" for n in filtered))
 
+    def test_filter_category_all_returns_every_category(self):
+        """--category all은 특정 카테고리로 좁히지 않고 전체를 반환해야 한다."""
+        filtered = self.service._filter_clean_news(
+            self.news, status="all", category="all", date_from=None, date_to=None
+        )
+        self.assertEqual(len(filtered), len(self.news))
+
     def test_filter_by_date_range(self):
         filtered = self.service._filter_clean_news(
             self.news, status="all", category=None,
@@ -122,6 +129,30 @@ class ExporterServiceTestCase(unittest.TestCase):
             self.news, status="summarized", category="economy", date_from=None, date_to=None
         )
         self.assertEqual(filtered, [])
+
+    def test_filter_date_range_excludes_none_published_at_without_error(self):
+        """published_at이 None인 뉴스는 날짜 필터 적용 시 에러 없이 제외되어야 한다."""
+        news_with_missing_date = self.news + [
+            {**self.news[0], "id": 999, "title": "발행일 없음", "published_at": None}
+        ]
+        filtered = self.service._filter_clean_news(
+            news_with_missing_date, status="all", category=None,
+            date_from="2026-08-01", date_to="2026-08-31",
+        )
+        self.assertNotIn(None, [n["published_at"] for n in filtered])
+        self.assertEqual(len(filtered), len(self.news))
+
+    def test_filter_date_range_ignores_time_component(self):
+        """published_at에 시간이 포함돼도 date_to 당일 기사가 제외되지 않아야 한다."""
+        news_with_time = self.news + [
+            {**self.news[0], "id": 998, "title": "시간 포함 발행일", "published_at": "2026-08-21T23:59:00"}
+        ]
+        filtered = self.service._filter_clean_news(
+            news_with_time, status="all", category=None,
+            date_from="2026-08-21", date_to="2026-08-21",
+        )
+        titles = {n["title"] for n in filtered}
+        self.assertIn("시간 포함 발행일", titles)
 
     def test_save_csv_uses_utf8_sig_encoding(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -151,6 +182,36 @@ class ExporterServiceTestCase(unittest.TestCase):
             sheet = wb.active
             headers = [cell.value for cell in sheet[1]]
             self.assertEqual(tuple(headers), self.service.EXPORT_COLUMNS)
+
+    def test_save_xlsx_wraps_long_title_and_summary_cells(self):
+        """제목·요약처럼 길어질 수 있는 컬럼은 줄바꿈이 적용되고 폭이 과도하게 늘어나지 않아야 한다."""
+        from openpyxl import load_workbook
+
+        long_news = [
+            {
+                **self.news[0],
+                "title": "가" * 200,
+                "summary": "나" * 300,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.xlsx"
+            self.service._save_xlsx(long_news, output_path)
+            wb = load_workbook(output_path)
+            sheet = wb.active
+
+            title_col_index = self.service.EXPORT_COLUMNS.index("title") + 1
+            summary_col_index = self.service.EXPORT_COLUMNS.index("summary") + 1
+            title_letter = sheet.cell(row=1, column=title_col_index).column_letter
+            summary_letter = sheet.cell(row=1, column=summary_col_index).column_letter
+
+            title_cell = sheet.cell(row=2, column=title_col_index)
+            summary_cell = sheet.cell(row=2, column=summary_col_index)
+
+            self.assertTrue(title_cell.alignment.wrap_text)
+            self.assertTrue(summary_cell.alignment.wrap_text)
+            self.assertLessEqual(sheet.column_dimensions[title_letter].width, 62)
+            self.assertLessEqual(sheet.column_dimensions[summary_letter].width, 62)
 
     def test_save_csv_handles_commas_and_newlines(self):
         with tempfile.TemporaryDirectory() as tmpdir:

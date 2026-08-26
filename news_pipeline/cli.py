@@ -269,16 +269,21 @@ def _run_export(
     from news_pipeline.services.exporter import ExporterService
 
     service = ExporterService()
-    service.export(
-        output_format=args.format,
-        status=args.status,
-        category=args.category,
-        date_from=args.date_from,
-        date_to=args.date_to,
-        output=args.output,
-        config=config,
-        project_root=project_root,
-    )
+    try:
+        service.export(
+            output_format=args.format,
+            status=args.status,
+            category=args.category,
+            date_from=args.date_from,
+            date_to=args.date_to,
+            output=args.output,
+            config=config,
+            project_root=project_root,
+        )
+    except ValueError as exc:
+        logging.getLogger("cli").error("내보내기 실패: %s", exc)
+        print(f"[ERROR] {exc}")
+        return 2
     return 0
 
 def _make_provider(args: argparse.Namespace, config: AppConfig):

@@ -5,6 +5,7 @@ import logging
 import csv
 import json
 from openpyxl import Workbook
+from openpyxl.styles import Alignment
 from datetime import datetime
 from news_pipeline.config import AppConfig, resolve_project_path
 
@@ -121,12 +122,19 @@ class ExporterService:
                 continue
             if status == "unsummarized" and news["summary_status"] == "summarized":
                 continue
-            if category and news["category"] != category:
+            if category and category != "all" and news["category"] != category:
                 continue
-            if date_from and news["published_at"] < date_from:
-                continue
-            if date_to and news["published_at"] > date_to:
-                continue
+            if date_from or date_to:
+                published_at = news.get("published_at")
+                if not published_at:
+                    # 발행일을 알 수 없으면 날짜 필터 조건을 만족하는지 판단할 수 없으므로 제외한다.
+                    continue
+                # 시간까지 포함된 값(예: 2026-08-20T10:00:00)이어도 날짜 부분만 비교한다.
+                published_date = published_at[:10]
+                if date_from and published_date < date_from:
+                    continue
+                if date_to and published_date > date_to:
+                    continue
             filtered.append(news)
         return filtered
 
@@ -182,9 +190,27 @@ class ExporterService:
                 row.append(value)
             sheet.append(row)
 
-        for column_cells in sheet.columns:
-            max_length = max(len(str(cell.value)) for cell in column_cells)
-            sheet.column_dimensions[column_cells[0].column_letter].width = max_length + 2
+        # 제목·요약처럼 내용이 길어질 수 있는 컬럼은 줄바꿈을 적용하고,
+        # 컬럼 폭이 무한정 늘어나지 않도록 상한을 둔다.
+        wrap_columns = {"title", "summary", "key_points"}
+        max_column_width = 60
+        wrap_alignment = Alignment(wrap_text=True, vertical="top")
+
+        for col_index, column_name in enumerate(self.EXPORT_COLUMNS, start=1):
+            column_letter = sheet.cell(row=1, column=col_index).column_letter
+            column_cells = sheet[column_letter]
+            max_length = max(
+                (len(str(cell.value)) if cell.value is not None else 0)
+                for cell in column_cells
+            )
+            if column_name in wrap_columns:
+                sheet.column_dimensions[column_letter].width = min(
+                    max_length + 2, max_column_width
+                )
+                for cell in column_cells[1:]:
+                    cell.alignment = wrap_alignment
+            else:
+                sheet.column_dimensions[column_letter].width = max_length + 2
 
         workbook.save(output_path)
         return output_path
